@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { Tag } from "@/app/badges";
 import { FetchButton } from "@/app/investor-flow/fetch-button";
-import { engine, INVESTOR_TYPES, type InvestorFlowDay, type InvestorType } from "@/lib/engine";
+import { engine, INVESTOR_TYPES, type InvestorFlowDay, type InvestorType, type NetFlowDay } from "@/lib/engine";
 import { thaiDate, thaiDateTime } from "@/lib/format";
 
 const LABEL: Record<InvestorType, string> = {
@@ -17,6 +17,10 @@ function million(x: number, signed = false): string {
   return signed && x > 0 ? `+${s}` : s;
 }
 
+function netTone(x: number): string {
+  return x > 0 ? "text-green-700 dark:text-green-400" : x < 0 ? "text-red-700 dark:text-red-400" : "";
+}
+
 export default function InvestorFlowPage() {
   return (
     <Suspense fallback={<p className="text-zinc-500">กำลังโหลด…</p>}>
@@ -26,7 +30,10 @@ export default function InvestorFlowPage() {
 }
 
 async function FlowTable() {
-  const days = await engine<InvestorFlowDay[]>("/investor-flow");
+  const [days, history] = await Promise.all([
+    engine<InvestorFlowDay[]>("/investor-flow"),
+    engine<NetFlowDay[]>("/investor-flow/history"),
+  ]);
   const th = "px-3 py-2 font-medium";
   const cell = "px-3 py-2 text-right whitespace-nowrap";
 
@@ -75,7 +82,6 @@ async function FlowTable() {
                   </td>
                   {INVESTOR_TYPES.map((t) => {
                     const net = d[`${t}_buy`] - d[`${t}_sell`];
-                    const tone = net > 0 ? "text-green-700 dark:text-green-400" : net < 0 ? "text-red-700 dark:text-red-400" : "";
                     return [
                       <td key={`${t}-buy`} className={`${cell} border-l border-zinc-200 dark:border-zinc-800`}>
                         {million(d[`${t}_buy`])}
@@ -83,7 +89,7 @@ async function FlowTable() {
                       <td key={`${t}-sell`} className={cell}>
                         {million(d[`${t}_sell`])}
                       </td>,
-                      <td key={`${t}-net`} className={`${cell} font-medium ${tone}`}>
+                      <td key={`${t}-net`} className={`${cell} font-medium ${netTone(net)}`}>
                         {million(net, true)}
                       </td>,
                     ];
@@ -94,7 +100,48 @@ async function FlowTable() {
           </table>
         </div>
       )}
+
+      {history.length > 0 && <NetHistory days={history} />}
     </div>
+  );
+}
+
+function NetHistory({ days }: { days: NetFlowDay[] }) {
+  const th = "px-3 py-2 font-medium text-right";
+  const cell = "px-3 py-2 text-right whitespace-nowrap font-medium";
+  return (
+    <section className="space-y-2">
+      <div>
+        <h2 className="text-lg font-semibold">ย้อนหลัง 1 ปี (สุทธิเท่านั้น)</h2>
+        <p className="text-sm text-zinc-500">
+          ที่มา siamchart.com ไม่มีมูลค่าซื้อ/ขาย และสถาบันในประเทศรวมบัญชีบริษัทหลักทรัพย์ หน่วยล้านบาท
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">วันที่</th>
+              <th className={th}>สถาบันในประเทศ + บล.</th>
+              <th className={th}>{LABEL.foreign}</th>
+              <th className={th}>{LABEL.individual}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {days.map((d) => (
+              <tr key={d.date} className="border-t border-zinc-200 dark:border-zinc-800">
+                <td className="px-3 py-2 whitespace-nowrap">{thaiDate(d.date)}</td>
+                {[d.local_institution_net, d.foreign_net, d.individual_net].map((v, i) => (
+                  <td key={i} className={`${cell} ${netTone(v)}`}>
+                    {million(v, true)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

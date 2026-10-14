@@ -161,3 +161,11 @@ export type InvestorFlowDay = {
   fetched_at: string;
   intraday: boolean;
 } & Record<`${InvestorType}_${"buy" | "sell"}`, number>;
+
+// siamchart backfill: net only, and local_institution includes proprietary
+export type NetFlowDay = {
+  date: string;
+  local_institution_net: number;
+  foreign_net: number;
+  individual_net: number;
+};

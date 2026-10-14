@@ -7,7 +7,7 @@
 ## Requirements
 
 ### Requirement: หน้า settings แสดงเกณฑ์ทั้งหมด
-ระบบ SHALL มีหน้า settings ที่เข้าได้จาก header ทุกหน้า และจากปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch บนหน้า candidates และแสดงเกณฑ์ที่แก้ได้แบ่งตามหมวด liquidity, quality gate, fair value, CDC, risk/reward และ candidates แต่ละช่อง SHALL แสดงชื่อภาษาไทย ค่าปัจจุบัน และค่า default
+ระบบ SHALL มีหน้า settings ที่เข้าได้จากปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch บนหน้า candidates (header ไม่มีลิงก์ไปหน้า settings) และแสดงเกณฑ์ที่แก้ได้แบ่งตามหมวด liquidity, quality gate, fair value, CDC, risk/reward และ candidates แต่ละช่อง SHALL แสดงชื่อภาษาไทย ค่าปัจจุบัน และค่า default
 
 #### Scenario: เปิดหน้า settings ครั้งแรก
 - **WHEN** ผู้ใช้ยังไม่เคยแก้ค่าใดและเปิดหน้า settings

@@ -21,9 +21,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               Value stock shortlist
             </Link>
             <nav className="flex flex-wrap items-center gap-3">
-              <Link href="/settings" className="rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                ตั้งค่า
-              </Link>
               <form action="/search" className="flex gap-2">
                 <label htmlFor="q" className="sr-only">
                   ค้นหา symbol

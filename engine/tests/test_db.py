@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from shortlist import db
-from shortlist.sources import QUARTERLY_COLUMNS, StockInfo
+from shortlist.sources import QUARTERLY_COLUMNS, NetFlow, StockInfo
 from tests.fakes import investor_flow
 
 BKK = ZoneInfo("Asia/Bangkok")
@@ -126,3 +126,15 @@ def test_save_run_keeps_investor_flow_history(tmp_path):
         run_id = db.start_run(conn, stale_minutes=30)
         db.save_run(conn, run_id, db.RunResults([], {}, {}, [], {}, None))
     assert [r["date"] for r in db.investor_flow(conn)] == ["2026-10-13"]
+
+
+def test_net_flow_history_rerun_has_no_duplicates_and_skips_set_days(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    flows = [NetFlow(date(2026, 10, d), 1e6, 2e6, -3e6) for d in (9, 12, 14)]
+    db.save_net_flows(conn, flows)
+    db.save_net_flows(conn, flows[1:] + [NetFlow(date(2026, 10, 12), 5e6, 2e6, -7e6)])
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14)))
+
+    rows = db.net_flow_history(conn)
+    assert [(r["date"], r["local_institution_net"]) for r in rows] == [("2026-10-12", 5e6), ("2026-10-09", 1e6)]
+    assert len(db.net_flow_history(conn, limit=1)) == 1

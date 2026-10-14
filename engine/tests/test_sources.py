@@ -8,6 +8,7 @@ import pandas as pd
 
 from shortlist.sources import FinancialSource, InvestorFlowSource, PriceSource
 from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow
+from shortlist.sources.siamchart import to_net_flows
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
 from shortlist.sources.yahoo import YahooPrices, clean_prices, quarterly_market_cap
 
@@ -225,3 +226,22 @@ def test_investor_flow_rejects_sum_off_total():
     raw["investors"][0]["sellValue"] *= 3
     with pytest.raises(ValueError, match="ขาย"):
         to_investor_flow(raw)
+
+
+def siamchart_raw() -> list[list[str]]:
+    return json.loads((Path(__file__).parent / "fixtures" / "siamchart_market_data_2026-10-14.json").read_text())
+
+
+def test_net_flows_keep_since_and_convert_to_baht():
+    flows = to_net_flows(siamchart_raw(), since=date(2025, 10, 15))
+    assert flows[0].date >= date(2025, 10, 15) and flows[-1].date == date(2026, 10, 14)
+    last = flows[-1]
+    # matches SET for 14 Oct: institution -692.81 + proprietary +113.86
+    assert (last.local_institution, last.foreign, last.individual) == (-578_950_000, 5_690_990_000, -5_112_040_000)
+
+
+def test_net_flows_reject_the_day_that_does_not_sum_to_zero():
+    raw = siamchart_raw()
+    raw[-2][2] = str(float(raw[-2][2]) + 100)
+    with pytest.raises(ValueError, match=raw[-2][0]):
+        to_net_flows(raw, since=date(2025, 10, 15))

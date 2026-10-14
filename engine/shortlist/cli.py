@@ -36,5 +36,23 @@ def main() -> None:
     )
 
 
+def backfill_flow() -> None:
+    """One-off: a year of daily net values by investor group from siamchart (design D5)."""
+    from shortlist.sources.siamchart import SiamchartNetFlow
+
+    parser = argparse.ArgumentParser(description="เติมค่าสุทธิตามประเภทนักลงทุนย้อนหลัง 1 ปีจาก siamchart")
+    parser.add_argument("--db", type=Path, default=db.DEFAULT_PATH)
+    args = parser.parse_args()
+    try:
+        flows = SiamchartNetFlow().fetch_net_flows()
+    except Exception as e:
+        sys.exit(f"เติมย้อนหลังไม่ได้: {type(e).__name__}: {e}")
+    db.save_net_flows(db.connect(args.db), flows)
+    if flows:
+        print(f"เก็บค่าสุทธิ {len(flows)} วัน ตั้งแต่ {flows[0].date} ถึง {flows[-1].date}")
+    else:
+        print("siamchart ไม่มีข้อมูลในช่วง 1 ปี")
+
+
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from shortlist.sources import INVESTOR_TYPES, QUARTERLY_COLUMNS, InvestorFlow, StockInfo
+from shortlist.sources import INVESTOR_TYPES, QUARTERLY_COLUMNS, InvestorFlow, NetFlow, StockInfo
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "shortlist.db"
 
@@ -69,6 +69,14 @@ CREATE TABLE IF NOT EXISTS investor_flow (
     date TEXT PRIMARY KEY,
     total_value REAL NOT NULL,
     {", ".join(f"{c} REAL NOT NULL" for c in FLOW_COLUMNS)},
+    fetched_at TEXT NOT NULL
+);
+-- net-only backfill from siamchart (design D5); local_institution_net includes proprietary
+CREATE TABLE IF NOT EXISTS investor_flow_net (
+    date TEXT PRIMARY KEY,
+    local_institution_net REAL NOT NULL,
+    foreign_net REAL NOT NULL,
+    individual_net REAL NOT NULL,
     fetched_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -321,3 +329,21 @@ def investor_flow(conn: sqlite3.Connection, limit: int = 60) -> list[dict]:
         closed = datetime.combine(date.fromisoformat(r["date"]), MARKET_CLOSED_AT)
         out.append({**dict(r), "intraday": datetime.fromisoformat(r["fetched_at"]) < closed})
     return out
+
+
+def save_net_flows(conn: sqlite3.Connection, flows: list[NetFlow]) -> None:
+    fetched_at = _now().isoformat()
+    with conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO investor_flow_net VALUES (?, ?, ?, ?, ?)",
+            [(f.date.isoformat(), f.local_institution, f.foreign, f.individual, fetched_at) for f in flows],
+        )
+
+
+def net_flow_history(conn: sqlite3.Connection, limit: int = 260) -> list[dict]:
+    """Newest first, only days without SET buy/sell detail in investor_flow."""
+    rows = conn.execute(
+        "SELECT * FROM investor_flow_net WHERE date NOT IN (SELECT date FROM investor_flow) ORDER BY date DESC LIMIT ?",
+        (limit,),
+    )
+    return [dict(r) for r in rows]

@@ -237,3 +237,4 @@ def test_investor_flow_newest_first_with_limit_and_intraday(client):
     assert rows[0]["foreign_buy"] == 50e9 and "total_value" in rows[0] and "fetched_at" in rows[0]
     assert [r["date"] for r in c.get("/investor-flow?limit=1").json()] == ["2026-10-14"]
     assert c.get("/investor-flow?limit=0").status_code == 422
+    assert c.get("/investor-flow/history").json() == []

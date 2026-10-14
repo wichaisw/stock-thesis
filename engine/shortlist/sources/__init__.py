@@ -78,3 +78,13 @@ class InvestorFlowSource(Protocol):
     def fetch_investor_flow(self) -> InvestorFlow:
         """The latest trading day. Raises ValueError when the data fails validation."""
         ...
+
+
+@dataclass(frozen=True)
+class NetFlow:
+    """One trading day of SET net value (buy − sell) in baht; local_institution includes proprietary (siamchart merges them)."""
+
+    date: date
+    local_institution: float
+    foreign: float
+    individual: float

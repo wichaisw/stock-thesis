@@ -117,9 +117,7 @@ function riskReward(r: Evaluation["risk_reward"]): string[] {
     `- Target (median fair value): ${thb(r.target)}`,
     `- Target optimistic (max fair value): ${thb(r.target_optimistic)}`,
     `- RRR: ${num(r.rrr)}${r.low_rrr ? " (below the minimum RRR)" : ""}`,
-    `- Upside: ${pct(r.upside)}`,
-    `- Expected holding period: ${r.hold_months} months`,
-    `- Reward per month: ${pct(r.reward_per_month)}`,
+    `- Upside: ${pct(r.upside)}${r.high_upside ? " (unusually high upside)" : ""}`,
   ];
   if (r.reason) out.push(`- Note: ${r.reason}`);
   return out;

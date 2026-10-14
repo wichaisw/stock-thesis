@@ -105,8 +105,7 @@ export type Evaluation = {
     rrr: number | null;
     low_rrr: boolean;
     upside: number | null;
-    hold_months: number;
-    reward_per_month: number | null;
+    high_upside?: boolean;
     reason: string | null;
   } | null;
   inclusion: { included: boolean; reasons: string[] };

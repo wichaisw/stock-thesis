@@ -104,7 +104,6 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
             <th className={th}>Fair value panel</th>
             <th className={`${th} text-right`}>MoS ต่ำ / median / สูง</th>
             <th className={`${th} text-right`}>RRR</th>
-            <th className={`${th} text-right`}>Reward/เดือน</th>
             <th className={th}>ป้าย</th>
           </tr>
         </thead>
@@ -133,7 +132,6 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                 <td className="px-3 py-2 text-right" title={rr.reason ?? undefined}>
                   {rr.rrr ?? "N/A"}
                 </td>
-                <td className="px-3 py-2 text-right">{pct(rr.reward_per_month)}</td>
                 <td className="space-x-1 px-3 py-2 whitespace-nowrap">
                   {c.quality?.inflection.flag && (
                     <Tag tone="violet" title={c.quality.inflection.reason ?? undefined}>
@@ -144,6 +142,7 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                   {c.fair_value!.structure_change.flag && (
                     <Tag tone="red" title={c.fair_value!.structure_change.reason ?? undefined}>
                       โครงสร้างทุนเปลี่ยน
+                  {rr.high_upside && <Tag tone="red">upside สูงผิดปกติ</Tag>}
                     </Tag>
                   )}
                   {c.fair_value!.history_gap?.flag && (

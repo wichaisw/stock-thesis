@@ -33,10 +33,6 @@ def statement_deadlines(today: date, cfg: Catalyst) -> list[dict]:
     return out
 
 
-def next_statement_deadline(today: date, cfg: Catalyst) -> date:
-    return date.fromisoformat(statement_deadlines(today, cfg)[0]["date"])
-
-
 def event_calendar(today: date, cfg: Catalyst, manual_events: list[dict]) -> list[dict]:
     end = add_months(today, cfg.horizon_months).isoformat()
     start = today.isoformat()

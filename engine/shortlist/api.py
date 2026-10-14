@@ -133,7 +133,7 @@ def create_app(
             except Exception as e:
                 db.fail_run(c, run_id, f"{type(e).__name__}: {e}")
                 raise
-            batch.execute(c, run_id, prices, financials, cfg, today(), log=log.info)
+            batch.execute(c, run_id, prices, financials, cfg, log=log.info)
         except Exception:
             # the run is already marked failed; keep the server alive
             log.exception("batch run %s failed", run_id)

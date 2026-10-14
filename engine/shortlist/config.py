@@ -197,26 +197,12 @@ class RiskReward(Strict):
         "เหลือแต่หุ้นที่คุ้มความเสี่ยงชัดเจน ลดค่าจะเตือนน้อยลง",
         "times", ge=0, le=20,
     )
-    min_hold_months: float = editable(
-        "ระยะถือขั้นต่ำ",
-        "reward ต่อเดือนหารด้วยระยะเวลาจนถึงวันที่งบไตรมาสถัดไปต้องออก แต่ไม่ต่ำกว่าค่านี้ เพื่อไม่ให้หุ้นที่งบใกล้ออกดู reward ต่อเดือนสูงเกินจริง "
-        "ต้องไม่เกินระยะถือสูงสุด",
-        "months", gt=0, le=24,
+    max_upside: float = editable(
+        "Upside สูงสุดก่อนติดป้ายเตือน",
+        "หุ้นที่ (target − entry) ÷ entry สูงกว่านี้ติดป้าย upside สูงผิดปกติ เพราะ target อาจถูก band ในอดีตดึงสูงเกินจริง แต่ยังอยู่ใน list "
+        "ลดค่าจะเตือนบ่อยขึ้น เพิ่มค่าจะเตือนเฉพาะ target ที่ห่างราคาหลายเท่า",
+        "percent", gt=0, le=10,
     )
-    max_hold_months: float = editable(
-        "ระยะถือสูงสุด",
-        "ระยะถือที่ใช้หาร reward ต่อเดือนไม่เกินค่านี้ ตามหลักว่าไม่ควรแช่เงินเกินราว 1 ไตรมาส เพิ่มค่าจะทำให้ reward ต่อเดือนของหุ้นที่งบออกช้าต่ำลง "
-        "ลดค่าจะคิดเหมือนต้องได้ผลเร็วขึ้น ทำให้ reward ต่อเดือนสูงขึ้น",
-        "months", gt=0, le=24,
-    )
-
-    @field_validator("max_hold_months")
-    @classmethod
-    def _max_not_below_min(cls, v: float, info: ValidationInfo) -> float:
-        low = info.data.get("min_hold_months")
-        if low is not None and v < low:
-            raise ValueError(f"ต้องไม่น้อยกว่าระยะถือขั้นต่ำ ({low:g} เดือน)")
-        return v
 
 
 class Candidates(Strict):

@@ -50,8 +50,7 @@ function candidate(): StockDetail {
       rrr: 0.63,
       low_rrr: true,
       upside: 0.1099,
-      hold_months: 1.02,
-      reward_per_month: 0.1079,
+      high_upside: false,
       reason: null,
     },
     inclusion: { included: true, reasons: [] },
@@ -132,6 +131,15 @@ describe("toLlmMarkdown", () => {
     const md = toLlmMarkdown(rejected());
     expect(md).toMatch(/\| Dividend yield band.*\| N\/A \| N\/A \| ไม่ได้จ่ายปันผลเงินสดใน 12 เดือนล่าสุด \|/);
     expect(md).toContain("ส่วนผู้ถือหุ้น +69% ใน 2023Q2");
+  });
+
+  test("marks an unusually high upside and drops the holding period", () => {
+    const d = candidate();
+    expect(toLlmMarkdown(d)).not.toContain("unusually high upside");
+    d.evaluation!.risk_reward!.high_upside = true;
+    const md = toLlmMarkdown(d);
+    expect(md).toContain("- Upside: +11.0% (unusually high upside)");
+    expect(md).not.toMatch(/holding period|per month/i);
   });
 
   test("explains the methods it contains, including the cash dividend yield band", () => {

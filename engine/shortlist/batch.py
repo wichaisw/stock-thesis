@@ -1,7 +1,6 @@
 import sqlite3
 import time
 from collections.abc import Callable
-from datetime import date
 
 import pandas as pd
 
@@ -85,12 +84,11 @@ def run(
     prices_src: PriceSource,
     fin_src: FinancialSource,
     cfg: Config,
-    today: date | None = None,
     log: Log = lambda _: None,
 ) -> int:
     """Raises db.RunInProgress when another batch is running."""
     run_id = db.start_run(conn, cfg.batch.stale_run_minutes)
-    execute(conn, run_id, prices_src, fin_src, cfg, today, log)
+    execute(conn, run_id, prices_src, fin_src, cfg, log)
     return run_id
 
 
@@ -100,11 +98,10 @@ def execute(
     prices_src: PriceSource,
     fin_src: FinancialSource,
     cfg: Config,
-    today: date | None = None,
     log: Log = lambda _: None,
 ) -> None:
     try:
-        db.save_run(conn, run_id, collect(prices_src, fin_src, cfg, today or date.today(), log))
+        db.save_run(conn, run_id, collect(prices_src, fin_src, cfg, log))
     except BatchAborted as e:
         log(str(e))
         db.fail_run(conn, run_id, str(e))
@@ -114,7 +111,7 @@ def execute(
         raise
 
 
-def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, today: date, log: Log) -> db.RunResults:
+def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log) -> db.RunResults:
     guard = RunGuard(cfg.batch)
     try:
         stocks = fin_src.list_stocks()
@@ -169,7 +166,6 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, toda
         sym: (by_symbol[sym].sector, fair_value.current_pe(q, float(prices[sym]["close"].iloc[-1]), caps[sym]))
         for sym, q in quarterly.items()
     }
-    next_deadline = catalyst.next_statement_deadline(today, cfg.catalyst)
 
     evaluations = []
     for s in stocks:
@@ -178,7 +174,7 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, toda
         try:
             evaluations.append(
                 evaluate_stock(s, prices[s.symbol], quarterly.get(s.symbol), caps.get(s.symbol), liquidity[s.symbol],
-                               pe_by_symbol, today, next_deadline, cfg)
+                               pe_by_symbol, cfg)
             )
         except Exception as e:
             failures[s.symbol] = f"ประเมินไม่ได้: {type(e).__name__}: {e}"
@@ -207,8 +203,6 @@ def evaluate_stock(
     caps: pd.DataFrame | None,
     liquidity: dict,
     pe_by_symbol: dict[str, tuple[str, float | None]],
-    today: date,
-    next_deadline: date,
     cfg: Config,
 ) -> dict:
     price = float(prices["close"].iloc[-1])
@@ -235,7 +229,7 @@ def evaluate_stock(
         ev["quality"] = quality.evaluate(quarterly, info.sector, cfg.quality)
         ev["fair_value"] = fv
         ev["risk_reward"] = risk_reward.evaluate(
-            prices, cdc_result.get("slow"), fv["summary"], today, next_deadline, cfg.risk_reward
+            prices, cdc_result.get("slow"), fv["summary"], cfg.risk_reward
         )
     ev["inclusion"] = candidates.inclusion(ev, cfg.candidates)
     return ev

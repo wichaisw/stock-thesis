@@ -27,7 +27,6 @@ def test_statement_deadlines_on_14_oct_2026():
         ("2026-11-14", "กำหนดส่งงบไตรมาส 3/2026", True),
         ("2027-03-01", "กำหนดส่งงบปี 2026", True),
     ]
-    assert catalyst.next_statement_deadline(TODAY, CFG) == date(2026, 11, 14)
 
 
 def test_index_reviews_within_six_months_are_estimated():

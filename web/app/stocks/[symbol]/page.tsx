@@ -296,9 +296,9 @@ function RiskReward({ ev }: { ev: Evaluation }) {
           <Row label="RRR">
             {r.rrr ?? "N/A"} {r.low_rrr && <Tag tone="red">RRR ต่ำกว่าเกณฑ์</Tag>}
           </Row>
-          <Row label="Upside">{pct(r.upside)}</Row>
-          <Row label="ระยะถือที่คาด">{r.hold_months} เดือน</Row>
-          <Row label="Reward ต่อเดือน">{pct(r.reward_per_month)}</Row>
+          <Row label="Upside">
+            {pct(r.upside)} {r.high_upside && <Tag tone="red">upside สูงผิดปกติ</Tag>}
+          </Row>
           {r.reason && <p className="mt-2 text-sm text-zinc-500">{r.reason}</p>}
         </dl>
       )}

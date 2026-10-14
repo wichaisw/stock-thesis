@@ -1,5 +1,5 @@
 import re
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -25,7 +25,7 @@ def fake_sources():
 
 def test_one_stock_failing_does_not_stop_the_batch(tmp_path):
     conn = db.connect(tmp_path / "t.db")
-    run_id = batch.run(conn, *fake_sources(), CFG, today=date(2026, 10, 14))
+    run_id = batch.run(conn, *fake_sources(), CFG)
 
     run = db.get_run(conn, run_id)
     assert run["status"] == "succeeded"
@@ -38,7 +38,6 @@ def test_one_stock_failing_does_not_stop_the_batch(tmp_path):
     assert ev["quality"]["passed"]
     assert ev["fair_value"]["summary"]["computed"] > 0
     assert ev["cdc"]["state"] == "bull"
-    assert ev["risk_reward"]["hold_months"] == 1.02  # 31 days to the Q3 deadline
     assert db.evaluation(conn, run_id, "BBB") is None
 
 
@@ -75,7 +74,6 @@ def test_crash_marks_run_failed(tmp_path):
 
 DNS = "An error occurred while fetching stock list: [Errno 8] nodename nor servname provided, or not known"
 NOT_FOUND = "Stock with symbol FLE not found."
-TODAY = date(2026, 10, 14)
 
 
 def many(n: int) -> list[StockInfo]:
@@ -109,11 +107,11 @@ def test_other_errors_are_not_network_errors(message):
 
 def test_network_outage_stops_the_batch_and_keeps_the_last_good_run(tmp_path):
     conn = db.connect(tmp_path / "t.db")
-    good = batch.run(conn, *fake_sources(), CFG, today=TODAY)
+    good = batch.run(conn, *fake_sources(), CFG)
 
     prices, fin = outage_sources({f"S{i:02d}": DNS for i in range(5)})
     with pytest.raises(batch.BatchAborted):
-        batch.run(conn, prices, fin, CFG, today=TODAY)
+        batch.run(conn, prices, fin, CFG)
 
     run = db.latest_run(conn)
     assert run["status"] == "failed"
@@ -126,7 +124,7 @@ def test_network_outage_stops_the_batch_and_keeps_the_last_good_run(tmp_path):
 def test_network_errors_broken_by_another_error_do_not_stop_the_batch(tmp_path):
     conn = db.connect(tmp_path / "t.db")
     errors = {f"S{i:02d}": DNS for i in [0, 1, 2, 3, 5, 6, 7, 8]} | {"S04": NOT_FOUND}
-    run_id = batch.run(conn, *outage_sources(errors), CFG, today=TODAY)
+    run_id = batch.run(conn, *outage_sources(errors), CFG)
 
     run = db.get_run(conn, run_id)
     assert run["status"] == "succeeded"
@@ -139,7 +137,7 @@ def test_price_outage_stops_the_batch_before_statements(tmp_path):
     prices = FakePrices({}, unreachable="เชื่อมต่อแหล่งราคาไม่ได้: [Errno 8] nodename nor servname provided")
     fin = FakeFinancials(stocks, {})
     with pytest.raises(batch.BatchAborted):
-        batch.run(conn, prices, fin, CFG, today=TODAY)
+        batch.run(conn, prices, fin, CFG)
 
     run = db.latest_run(conn)
     assert run["status"] == "failed" and run["error"].startswith("เครือข่ายใช้ไม่ได้")
@@ -151,7 +149,7 @@ def test_missing_prices_with_network_up_keep_the_old_reason(tmp_path):
     conn = db.connect(tmp_path / "t.db")
     stocks = many(10)
     prices = FakePrices({"S09": price_history()}, {"S09": market_caps(healthy_quarters())})
-    run_id = batch.run(conn, prices, FakeFinancials(stocks, {"S09": healthy_quarters()}), CFG, today=TODAY)
+    run_id = batch.run(conn, prices, FakeFinancials(stocks, {"S09": healthy_quarters()}), CFG)
 
     assert db.get_run(conn, run_id)["status"] == "succeeded"
     fails = db.failures(conn, run_id)
@@ -165,7 +163,7 @@ def test_empty_market_caps_during_an_outage_fail_the_stock(tmp_path):
     down = "เชื่อมต่อแหล่งราคาไม่ได้: [Errno 8] nodename nor servname provided"
     # prices came through, then the network dropped before the market cap history
     prices = FakePrices({s: price_history() for s in syms}, {"S00": market_caps(healthy_quarters())}, unreachable=down)
-    run_id = batch.run(conn, prices, FakeFinancials(stocks, {s: healthy_quarters() for s in syms}), CFG, today=TODAY)
+    run_id = batch.run(conn, prices, FakeFinancials(stocks, {s: healthy_quarters() for s in syms}), CFG)
 
     fails = db.failures(conn, run_id)
     assert set(fails) == {"S01", "S02"}
@@ -180,13 +178,13 @@ def test_five_empty_market_caps_during_an_outage_stop_the_batch(tmp_path):
     prices = FakePrices({s: price_history() for s in syms}, unreachable="เชื่อมต่อแหล่งราคาไม่ได้: timed out")
     fin = FakeFinancials(stocks, {s: healthy_quarters() for s in syms})
     with pytest.raises(batch.BatchAborted):
-        batch.run(conn, prices, fin, CFG, today=TODAY)
+        batch.run(conn, prices, fin, CFG)
     assert len(fin.calls) == 5
 
 
 def test_empty_market_caps_with_network_up_are_still_evaluated(tmp_path):
     conn = db.connect(tmp_path / "t.db")
-    run_id = batch.run(conn, *fake_sources(), CFG, today=TODAY)
+    run_id = batch.run(conn, *fake_sources(), CFG)
     # DDD has no market cap history in the fakes, and the fake source is reachable
     ev = db.evaluation(conn, run_id, "DDD")
     assert ev is not None
@@ -199,7 +197,7 @@ def test_run_over_the_time_limit_stops(tmp_path, monkeypatch):
     # time jumps past 20 minutes once two stocks' statements are in
     monkeypatch.setattr(batch.time, "monotonic", lambda: 21 * 60.0 if len(fin.calls) >= 2 else 0.0)
     with pytest.raises(batch.BatchAborted):
-        batch.run(conn, prices, fin, CFG, today=TODAY)
+        batch.run(conn, prices, fin, CFG)
 
     run = db.latest_run(conn)
     assert run["status"] == "failed"
@@ -209,7 +207,7 @@ def test_run_over_the_time_limit_stops(tmp_path, monkeypatch):
 
 def test_log_has_the_duration_of_every_phase(tmp_path):
     lines: list[str] = []
-    batch.run(db.connect(tmp_path / "t.db"), *fake_sources(), CFG, today=TODAY, log=lines.append)
+    batch.run(db.connect(tmp_path / "t.db"), *fake_sources(), CFG, log=lines.append)
     for phase in ["รายชื่อหุ้น", "ได้ราคา", "ดึงงบและ market cap", "ประเมิน", "รวม"]:
         line = next((ln for ln in lines if phase in ln), None)
         assert line is not None and re.search(r"\d+ วินาที", line), (phase, lines)
@@ -218,8 +216,7 @@ def test_log_has_the_duration_of_every_phase(tmp_path):
 def test_abort_reason_is_logged(tmp_path):
     lines: list[str] = []
     with pytest.raises(batch.BatchAborted):
-        batch.run(db.connect(tmp_path / "t.db"), *outage_sources({f"S{i:02d}": DNS for i in range(5)}), CFG,
-                  today=TODAY, log=lines.append)
+        batch.run(db.connect(tmp_path / "t.db"), *outage_sources({f"S{i:02d}": DNS for i in range(5)}), CFG, log=lines.append)
     assert lines[-1].startswith("เครือข่ายใช้ไม่ได้")
 
 

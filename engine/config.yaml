@@ -43,8 +43,7 @@ risk_reward:
   swing_low_days: 20
   stop_buffer: 0.03
   min_rrr: 2.0
-  min_hold_months: 1
-  max_hold_months: 3
+  max_upside: 1.0
 
 candidates:
   min_median_mos: 0.10

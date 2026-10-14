@@ -51,10 +51,6 @@ def test_ocf_positive_cannot_exceed_window():
     assert error_locs({"quality.ocf_window": 4, "quality.ocf_min_positive": 5}) == {"quality.ocf_min_positive"}
 
 
-def test_max_hold_cannot_be_below_min_hold():
-    assert error_locs({"risk_reward.min_hold_months": 3, "risk_reward.max_hold_months": 1}) == {"risk_reward.max_hold_months"}
-
-
 @pytest.mark.parametrize("key", ["fair_value.enabled", "candidates.accepted_states"])
 def test_choice_lists_need_at_least_one(key):
     assert error_locs({key: []}) == {key}

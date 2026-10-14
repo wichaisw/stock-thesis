@@ -23,11 +23,12 @@
   | เรื่อง | default |
   |---|---|
   | Liquidity | avg traded value 20 วัน ≥ 10 ลบ./วัน |
-  | Quality gate | ROE ≥ 10%, D/E ≤ 1.5 (ยกเว้นการเงิน), OCF > 0 อย่างน้อย 3 ใน 4 ไตรมาสล่าสุด, ไม่ขาดทุนใน 4 ไตรมาสล่าสุด, งบ ≥ 12 ไตรมาส |
+  | Quality gate | ROE TTM ≥ 10%, D/E ≤ 1.5 (ยกเว้นการเงิน), OCF > 0 อย่างน้อย 3 ใน 4 ไตรมาสล่าสุด, ไม่ขาดทุนใน 4 ไตรมาสล่าสุด, งบ ≥ 12 ไตรมาส |
   | CDC | `bear-approaching` = ETA ≤ 20 วันทำการ, `just-crossed` = cross ภายใน 5 วัน |
   | Stop | min(swing low 20 วัน, slow EMA − 3%) |
   | Target ใน RRR | median ของ fair value panel (แสดง max ด้วย) |
   | Peer PE | หุ้นใน sector เดียวกันตาม thaifin |
+  | Valuation band | median 5 ปี (PE band มีเส้น median − 1SD และตัด PE > 100) |
 
 นอกขอบเขตของ change นี้:
 - **Change ถัดไป `thesis-tracking`** (Phase 2): watchlist ที่ต้องมี thesis, kill criteria (invalidation price, deadline default 90 วัน), milestone day 30/60 และ alert เมื่อ cross, โดน stop, งบออก หรือเกิน deadline ทำหลัง change นี้ใช้งานได้จริงแล้ว
@@ -71,10 +72,10 @@
     - มีผู้ดูแลคนเดียว release ล่าสุด ก.ค. 2025
   - **ผลต่อแผน**: ใช้คนเดียวบน local ตรงกับเจตนาของทั้งสอง library ถ้าจะเปิดให้หลายคนใช้หรือใช้เชิงพาณิชย์ ต้องย้ายไป SETSMART ผ่าน data source interface
 - **ผล POC** (ทดสอบ PTT, CPALL, KBANK, BH, หุ้น mai และสุ่ม 40 ตัว):
-  - A1 ✅ EPS, BVPS, dividend yield รายไตรมาสย้อนหลัง 5 ปีขึ้นไปสำหรับหุ้นใหญ่ และ thaifin มี PE/PBV รายไตรมาสให้ คำนวณ band ได้ตรงๆ ไม่มี DPS แต่คำนวณจาก yield × close ได้ บางไตรมาสมีช่องว่าง
-  - A2 ✅ มี ROE, D/E, OCF (ROE น่าจะเป็นตัวเลขไตรมาสที่ annualize แล้ว ต้องเช็คต่อ)
+  - A1 ✅ EPS, BVPS, dividend yield รายไตรมาสย้อนหลัง 5 ปีขึ้นไปสำหรับหุ้นใหญ่ แต่ PE ของ thaifin ในแถวเก่าใช้ EPS สะสมตั้งแต่ต้นปี จึงใช้ทำ band ไม่ได้ ต้องคำนวณ PE = close ÷ EPS TTM และ PBV = close ÷ BVPS เอง ไม่มี DPS แต่คำนวณจาก yield × close ได้ บางไตรมาสมีช่องว่าง
+  - A2 ✅ มี ROE, D/E, OCF (ตรวจแล้ว ROE ของ thaifin = กำไรไตรมาสเดียว × 4 ÷ ส่วนผู้ถือหุ้นเฉลี่ย จึงผันผวนตามไตรมาส quality gate จึงใช้ ROE TTM ที่คำนวณเอง)
   - A3 ⚠️ thaifin มีแถวไตรมาสล่วงหน้าที่มีแค่ราคา ต้องใช้ "ไตรมาสล่าสุดที่มี EPS" ไม่ใช่แถวล่าสุด ส่วนความช้าของงบยังวัดไม่ได้จนกว่างบ Q3 จะออก
   - A4 ✅ yfinance มี OHLCV รายวัน แต่แถวล่าสุดอาจมี Close เป็น NaN ต้องตัดแถวที่ไม่สมบูรณ์ทิ้งก่อนคำนวณ CDC
   - A5 ✅ thaifin ~0.17 วินาที/ตัว (930 ตัว ≈ 3 นาที), yfinance แบบ batch 40 ตัว ≈ 1.7 วินาที ยังไม่ได้ทดสอบทั้งตลาด จึงยังไม่รู้เรื่อง rate limit
   - A6 ⚠️ thaifin พังกับบางตัว (ValueError), yfinance ไม่มีบางตัว, หุ้น mai เล็กๆ มีงบไม่กี่ไตรมาส แก้ด้วย per-stock error handling, liquidity filter และเกณฑ์ ≥ 12 ไตรมาส
-- **Phase 0 spike ต้องทำก่อน**: backtest บน SET ว่า `bear-approaching` กลายเป็น cross จริงภายใน 20 วันทำการกี่ % ถ้าต่ำ ให้ใช้ CDC proximity เป็นตัว sort ไม่ใช่ gate
+- **Phase 0 spike ต้องทำก่อน**: backtest บน SET ว่า `bear-approaching` กลายเป็น cross จริงภายใน 20 วันทำการกี่ % (นับเฉพาะวันที่หุ้นผ่าน liquidity ณ วันนั้น) และ median return 20/60 วันหลังเข้า state เทียบกับ `bear-far` ถ้าต่ำ ให้ใช้ CDC proximity เป็นตัว sort ไม่ใช่ gate

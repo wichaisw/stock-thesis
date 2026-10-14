@@ -18,6 +18,7 @@
 - [x] 3.1 ทำ `core/cdc` ที่คำนวณ AP/Fast/Slow, gap%, ความเร็ว, ETA และ state ตาม spec `cdc-proximity` ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec รวมถึงกรณีราคาไม่พอ 60 วัน
 - [ ] 3.2 เทียบค่า Fast/Slow ที่คำนวณได้กับ CDC ActionZone บน TradingView ของหุ้น 3 ตัว แล้วบันทึกผลใน `engine/README.md` ตรวจว่าค่าตรงกันภายในความคลาดเคลื่อนจากการปัดเศษ
 - [x] 3.3 ทำ script backtest ใน `engine/scripts/` (design D8) ที่รายงาน % ที่ `bear-approaching` เกิด cross จริงภายใน 20 วันทำการ ตรวจว่า script รันจบและพิมพ์ผล แล้วบันทึกผลและค่า default ของ state ที่เลือกลง `config.yaml` และ `engine/README.md`
+- [ ] 3.4 แก้ backtest ให้นับเฉพาะวันที่หุ้นผ่าน liquidity ณ วันนั้น และรายงาน median return 20/60 วันของ `bear-approaching` เทียบกับ `bear-far` (design D8) รันใหม่ แล้วอัปเดตผลใน `engine/README.md` และทบทวน `accepted_states` ใน `config.yaml`
 
 ## 4. Core evaluation
 
@@ -26,6 +27,8 @@
 - [x] 4.3 ทำ `core/catalyst` (hints ตาม sector, กำหนดส่งงบที่ประมาณ, วัน index review, รวม event manual ภายใน 6 เดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `catalyst-watch` รวมถึงกรณีวันที่ 14 ต.ค. 2026
 - [x] 4.4 ทำ `core/risk_reward` (entry, stop, target, RRR, ป้ายเตือน, N/A, reward ต่อเดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `risk-reward`
 - [x] 4.5 ทำ `core/candidates` (เงื่อนไขเข้า list, การเรียงลำดับ) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `candidate-list` รวมถึงกรณีตั้ง config ให้รับทุก CDC state
+- [ ] 4.6 เพิ่ม `equity` ในรูปแบบข้อมูลงบกลางและ adapter thaifin แล้วเปลี่ยนเกณฑ์ ROE ใน `core/quality` เป็น ROE TTM ตรวจด้วย test ของ scenario ไตรมาสกำไรสูงผิดปกติและข้อมูล ROE ไม่ครบใน spec `quality-gate`
+- [ ] 4.7 เปลี่ยนทุก band ใน `core/fair_value` เป็น median (PE band มี median − 1SD) และตัด PE ที่เกินเกณฑ์ใน config (default 100) ตรวจด้วย test ของ scenario PE ย้อนหลังมีค่าผิดปกติใน spec `fair-value-panel`
 
 ## 5. Batch
 
@@ -37,6 +40,7 @@
 
 - [x] 6.1 ทำ endpoint: candidate list ของ run สำเร็จล่าสุด, รายละเอียดหุ้นรายตัว, ค้นหา symbol (ระบุว่าหุ้นตัวไหน fail พร้อมเหตุผล), รายชื่อหุ้นที่ fail ของ run ล่าสุด, สั่งรัน batch และดูสถานะ run ตรวจด้วย test ผ่าน FastAPI TestClient รวมถึงกรณีที่ยังไม่เคยมี run สำเร็จ
 - [x] 6.2 ทำ endpoint เพิ่มและลบ event manual ตรวจด้วย test ว่า event ยังอยู่หลังมี run ใหม่ และ event ที่เลยวันแล้วไม่ถูกส่งกลับมา
+- [ ] 6.3 เพิ่ม regression test ที่เปิด connection ของ DB ใน thread หนึ่งแล้วใช้ใน thread อื่นได้โดยไม่ error (design D3)
 
 ## 7. Web
 
@@ -47,4 +51,4 @@
 ## 8. Local operation และ integration
 
 - [x] 8.1 เขียน `README.md` ที่ root อธิบายการติดตั้ง, การรัน engine และ web, การแก้ config และตัวอย่าง cron ที่รัน batch หลังตลาดปิดในวันทำการ ตรวจว่าทำตาม README บนเครื่องใหม่แล้วรันได้
-- [ ] 8.2 ทดสอบ end-to-end: รัน batch จริงจาก UI แล้วสุ่มหุ้นใน candidate list 3 ตัวมาเทียบ CDC state กับ TradingView และ fair value กับงบจริง ตรวจว่าผลสอดคล้องกัน และบันทึกสิ่งที่ไม่ตรงเป็น issue
+- [ ] 8.2 ทดสอบ end-to-end: รัน batch จริงจาก UI แล้วสุ่มหุ้นใน candidate list 3 ตัวมาเทียบ CDC state กับ TradingView และ fair value กับงบจริง ตรวจว่าผลสอดคล้องกัน และบันทึกสิ่งที่ไม่ตรงเป็น issue รวมถึงตัดสินว่าหุ้นที่ควบรวมหรือปรับโครงสร้างต้องมีป้ายเตือนหรือไม่ (design Risks)

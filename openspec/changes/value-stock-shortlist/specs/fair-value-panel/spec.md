@@ -7,11 +7,15 @@
 ## ADDED Requirements
 
 ### Requirement: Fair value แยกตามเกณฑ์
-ระบบ SHALL คำนวณ fair value ของแต่ละหุ้นตามเกณฑ์ที่เปิดใช้ใน config: PE band (ค่าเฉลี่ย 5 ปี และ ค่าเฉลี่ย − 1SD), PBV band (ค่าเฉลี่ย 5 ปี), dividend yield band (ค่าเฉลี่ย 5 ปี) และ peer PE (median ของ sector เดียวกัน)
+ระบบ SHALL คำนวณ fair value ของแต่ละหุ้นตามเกณฑ์ที่เปิดใช้ใน config: PE band (median 5 ปี และ median − 1SD), PBV band (median 5 ปี), dividend yield band (median 5 ปี) และ peer PE (median ของ sector เดียวกัน) ระบบ SHALL คำนวณ PE ย้อนหลังเองจาก close ÷ EPS TTM ของแต่ละไตรมาส และ PBV จาก close ÷ BVPS ไม่ใช้ PE/PBV สำเร็จรูปจากแหล่งข้อมูล และ SHALL ตัด PE ที่สูงกว่าเกณฑ์ (default 100) ออกก่อนคำนวณ PE band ค่าเกณฑ์นี้ SHALL ปรับได้ใน config
 
 #### Scenario: คำนวณครบทุกเกณฑ์
 - **WHEN** หุ้นมีข้อมูล PE, PBV, BVPS, dividend yield ย้อนหลัง 5 ปี และมีหุ้นอื่นใน sector เดียวกัน
 - **THEN** ผลการประเมินมี fair value ของทั้ง 5 รายการ
+
+#### Scenario: PE ย้อนหลังมีค่าผิดปกติ
+- **WHEN** PE ย้อนหลังมีไตรมาสหนึ่งเป็น 400 เพราะ EPS TTM ใกล้ศูนย์
+- **THEN** PE ค่านั้นไม่ถูกนำไปคิด PE band
 
 #### Scenario: ปิดบางเกณฑ์ใน config
 - **WHEN** ผู้ใช้ปิดเกณฑ์ dividend yield band ใน config

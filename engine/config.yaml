@@ -3,7 +3,7 @@
 
 liquidity:
   window_days: 20
-  min_avg_traded_value: 5_000_000 # บาท/วัน
+  min_avg_traded_value: 10_000_000 # บาท/วัน
 
 quality:
   min_quarters: 12

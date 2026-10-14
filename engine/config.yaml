@@ -44,7 +44,7 @@ risk_reward:
 
 candidates:
   min_median_mos: 0.10
-  # backtest 3 ปี: bear-approaching cross ใน 20 วัน 62.8% เทียบ bear-far 34.0% (ดู README)
+  # backtest 3 ปี ไม่มี look-ahead: bear-approaching cross ใน 20 วัน 63.5% เทียบ bear-far 32.7% (ดู README)
   accepted_states: [bear-approaching, just-crossed]
 
 catalyst:

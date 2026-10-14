@@ -3,10 +3,13 @@ import { Suspense } from "react";
 
 import { deleteEvent } from "@/app/actions";
 import { FailIcon, Info, StateBadge, Tag } from "@/app/badges";
+import { CopyButton } from "@/app/stocks/[symbol]/copy-button";
 import { EventForm } from "@/app/stocks/[symbol]/event-form";
 import { engine, EngineError, type Check, type Evaluation, type StockDetail } from "@/lib/engine";
 import { baht, pct, thaiDate } from "@/lib/format";
+import { toLlmMarkdown } from "@/lib/llm-export";
 
+// METHOD_NOTES_EN in lib/llm-export.ts is the English twin of these two: change both together
 const FAIR_VALUE_HELP: Record<string, string> = {
   pe_median:
     "median PE 5 ปีของหุ้นเอง × EPS TTM คือราคาถ้าตลาดให้ PE เท่าปกติของมัน ราคาต่ำกว่าแปลว่าถูกเมื่อเทียบกับอดีตของตัวเอง เหมาะกับหุ้นที่กำไรสม่ำเสมอ ไม่เหมาะกับหุ้นวัฏจักรหรือกำไรเพิ่งพลิก",
@@ -53,9 +56,12 @@ async function Detail({ params }: Pick<PageProps<"/stocks/[symbol]">, "params">)
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">
-          {stock.symbol} {failure && <FailIcon reason={failure} />}
-        </h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold">
+            {stock.symbol} {failure && <FailIcon reason={failure} />}
+          </h1>
+          <CopyButton text={toLlmMarkdown(data)} />
+        </div>
         <p className="text-zinc-600 dark:text-zinc-400">
           {stock.name} · {stock.sector} · {stock.market}
         </p>

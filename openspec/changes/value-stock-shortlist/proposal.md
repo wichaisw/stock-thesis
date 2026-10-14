@@ -28,7 +28,7 @@
   | Stop | min(swing low 20 วัน, slow EMA − 3%) |
   | Target ใน RRR | median ของ fair value panel (แสดง max ด้วย) |
   | Peer PE | หุ้นใน sector เดียวกันตาม thaifin |
-  | Valuation band | median 5 ปี (PE band มีเส้น median − 1SD และตัด PE > 100) |
+  | Valuation band | median 5 ปีระดับบริษัท (market cap ÷ กำไรหรือส่วนผู้ถือหุ้น) PE band มีเส้น median − 1SD และตัด PE > 100 |
 
 นอกขอบเขตของ change นี้:
 - **Change ถัดไป `thesis-tracking`** (Phase 2): watchlist ที่ต้องมี thesis, kill criteria (invalidation price, deadline default 90 วัน), milestone day 30/60 และ alert เมื่อ cross, โดน stop, งบออก หรือเกิน deadline ทำหลัง change นี้ใช้งานได้จริงแล้ว
@@ -72,7 +72,7 @@
     - มีผู้ดูแลคนเดียว release ล่าสุด ก.ค. 2025
   - **ผลต่อแผน**: ใช้คนเดียวบน local ตรงกับเจตนาของทั้งสอง library ถ้าจะเปิดให้หลายคนใช้หรือใช้เชิงพาณิชย์ ต้องย้ายไป SETSMART ผ่าน data source interface
 - **ผล POC** (ทดสอบ PTT, CPALL, KBANK, BH, หุ้น mai และสุ่ม 40 ตัว):
-  - A1 ✅ EPS, BVPS, dividend yield รายไตรมาสย้อนหลัง 5 ปีขึ้นไปสำหรับหุ้นใหญ่ แต่ PE ของ thaifin ในแถวเก่าใช้ EPS สะสมตั้งแต่ต้นปี จึงใช้ทำ band ไม่ได้ ต้องคำนวณ PE = close ÷ EPS TTM และ PBV = close ÷ BVPS เอง ไม่มี DPS แต่คำนวณจาก yield × close ได้ บางไตรมาสมีช่องว่าง
+  - A1 ✅ EPS, BVPS, dividend yield รายไตรมาสย้อนหลัง 5 ปีขึ้นไปสำหรับหุ้นใหญ่ แต่ PE ของ thaifin ในแถวเก่าใช้ EPS สะสมตั้งแต่ต้นปี จึงใช้ทำ band ไม่ได้ และราคา, EPS, BVPS ต่อหุ้นย้อนหลังไม่ได้ปรับตามการแตกพาร์อย่างสม่ำเสมอ จึงต้องคำนวณ band ระดับบริษัทจาก market cap เอง ไม่มี DPS แต่คำนวณจาก yield × close ได้ บางไตรมาสมีช่องว่าง
   - A2 ✅ มี ROE, D/E, OCF (ตรวจแล้ว ROE ของ thaifin = กำไรไตรมาสเดียว × 4 ÷ ส่วนผู้ถือหุ้นเฉลี่ย จึงผันผวนตามไตรมาส quality gate จึงใช้ ROE TTM ที่คำนวณเอง)
   - A3 ⚠️ thaifin มีแถวไตรมาสล่วงหน้าที่มีแค่ราคา ต้องใช้ "ไตรมาสล่าสุดที่มี EPS" ไม่ใช่แถวล่าสุด ส่วนความช้าของงบยังวัดไม่ได้จนกว่างบ Q3 จะออก
   - A4 ✅ yfinance มี OHLCV รายวัน แต่แถวล่าสุดอาจมี Close เป็น NaN ต้องตัดแถวที่ไม่สมบูรณ์ทิ้งก่อนคำนวณ CDC

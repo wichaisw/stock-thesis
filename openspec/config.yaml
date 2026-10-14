@@ -1,32 +1,21 @@
 schema: spec-driven
 
-# Project context (optional)
-# Add only constraints that should guide OpenSpec artifacts and workflows.
-# Include constraints an agent cannot infer by reading the code.
-# Keep general project documentation and discoverable codebase facts out.
-# Example:
-#   context: |
-#     Designs and tasks must cover Windows, macOS, and Linux
-#     Write all artifacts in Spanish
+context: |
+  Single user, Thai SET value investor; runs locally. Deploying to Vercel is the last step, not a goal of any change.
+  Write artifacts in Thai. Keep market and code terms in English (MoS, ROE, CDC, fair value, candidate, batch).
+  All UI text is Thai.
+  The thesis: money should not sit in a stock for more than about one quarter. Weigh trade-offs against that (opportunity cost over tradability).
+  Candidates are filtered with pass/fail gates, then sorted. Never a weighted score. Fair value is a panel of methods, never one number.
+  yfinance and thaifin are unofficial. Never trust a new field or source until it has been cross-checked
+  against SET or TradingView and the result recorded in engine/README.md.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always state what is out of scope
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
-
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+rules:
+  proposal:
+    - State what is out of scope
+    - Say whether this change blocks or is blocked by the unfinished tasks of other changes
+  design:
+    - Every decision lists the alternatives considered and why they were rejected
+    - Risks include the worst case, not just the likely case
+  tasks:
+    - Every task states how it is verified. Engine uses uv run pytest; web uses bun run lint plus a browser check
+    - A task that changes how a stock is evaluated must re-run the batch and spot-check real stocks against SET or TradingView

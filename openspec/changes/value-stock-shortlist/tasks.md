@@ -21,11 +21,11 @@
 
 ## 4. Core evaluation
 
-- [ ] 4.1 ทำ `core/quality` (liquidity, จำนวนไตรมาสขั้นต่ำ, เกณฑ์พื้นฐาน, เกณฑ์หุ้นการเงิน, inflection flag) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `quality-gate`
-- [ ] 4.2 ทำ `core/fair_value` (5 เกณฑ์, margin of safety, N/A พร้อมเหตุผล, สรุป panel, peer PE เป็น N/A เมื่อ peer น้อยกว่า 3 ตัว) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `fair-value-panel`
-- [ ] 4.3 ทำ `core/catalyst` (hints ตาม sector, กำหนดส่งงบที่ประมาณ, วัน index review, รวม event manual ภายใน 6 เดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `catalyst-watch` รวมถึงกรณีวันที่ 14 ต.ค. 2026
-- [ ] 4.4 ทำ `core/risk_reward` (entry, stop, target, RRR, ป้ายเตือน, N/A, reward ต่อเดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `risk-reward`
-- [ ] 4.5 ทำ `core/candidates` (เงื่อนไขเข้า list, การเรียงลำดับ) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `candidate-list` รวมถึงกรณีตั้ง config ให้รับทุก CDC state
+- [x] 4.1 ทำ `core/quality` (liquidity, จำนวนไตรมาสขั้นต่ำ, เกณฑ์พื้นฐาน, เกณฑ์หุ้นการเงิน, inflection flag) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `quality-gate`
+- [x] 4.2 ทำ `core/fair_value` (5 เกณฑ์, margin of safety, N/A พร้อมเหตุผล, สรุป panel, peer PE เป็น N/A เมื่อ peer น้อยกว่า 3 ตัว) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `fair-value-panel`
+- [x] 4.3 ทำ `core/catalyst` (hints ตาม sector, กำหนดส่งงบที่ประมาณ, วัน index review, รวม event manual ภายใน 6 เดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `catalyst-watch` รวมถึงกรณีวันที่ 14 ต.ค. 2026
+- [x] 4.4 ทำ `core/risk_reward` (entry, stop, target, RRR, ป้ายเตือน, N/A, reward ต่อเดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `risk-reward`
+- [x] 4.5 ทำ `core/candidates` (เงื่อนไขเข้า list, การเรียงลำดับ) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `candidate-list` รวมถึงกรณีตั้ง config ให้รับทุก CDC state
 
 ## 5. Batch
 

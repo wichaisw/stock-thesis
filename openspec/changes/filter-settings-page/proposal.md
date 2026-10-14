@@ -41,6 +41,6 @@
   - `shortlist/db.py`: เพิ่มตาราง `settings` เก็บค่าที่ผู้ใช้แก้
   - `shortlist/api.py`: เพิ่ม `GET/PUT/DELETE /settings` และให้ batch ใช้ config ที่รวมค่าที่แก้แล้ว
   - `shortlist/cli.py`: ใช้ config ที่รวมค่าที่แก้แล้วเหมือนกัน
-- **web**: เพิ่มหน้า `app/settings/`, ลิงก์ใน header, component tooltip และป้ายเตือนบนหน้า candidates
+- **web**: เพิ่มหน้า `app/settings/`, ลิงก์ใน header, ปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch บนหน้า candidates, component tooltip และป้ายเตือนบนหน้า candidates
 - ไม่เพิ่ม dependency ทั้งสองฝั่ง
 - **ข้อมูล**: ค่าที่แก้อยู่ใน SQLite ไม่อยู่ใน git ถ้าลบ `shortlist.db` ค่าจะกลับเป็น default

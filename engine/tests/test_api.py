@@ -26,7 +26,7 @@ def client(tmp_path):
 def test_no_successful_run_yet(client):
     c, _ = client
     assert c.get("/runs/latest").json() == {"latest": None, "latest_succeeded": None}
-    assert c.get("/candidates").json() == {"run": None, "candidates": [], "failure_count": 0}
+    assert c.get("/candidates").json() == {"run": None, "candidates": [], "failure_count": 0, "stale": False}
     assert c.get("/failures").json() == {"run": None, "failures": []}
     assert c.get("/stocks/AAA").status_code == 404
 
@@ -105,3 +105,96 @@ def test_schema_exists_before_first_request(tmp_path):
     create_app(db_path=tmp_path / "fresh.db", sources=fake_sources, today=lambda: TODAY)
     tables = {r[0] for r in sqlite3.connect(tmp_path / "fresh.db").execute("SELECT name FROM sqlite_master")}
     assert {"runs", "evaluations"} <= tables
+
+
+def field(body: dict, key: str) -> dict:
+    return next(f for f in body["fields"] if f["key"] == key)
+
+
+def test_settings_start_at_defaults(client):
+    c, _ = client
+    body = c.get("/settings").json()
+    liq = field(body, "liquidity.min_avg_traded_value")
+    assert liq["value"] == liq["default"] == 10_000_000 and liq["unit"] == "million_baht"
+    assert not any(f["key"].startswith("cdc.fast") for f in body["fields"])
+    assert body["stale"] is False and body["updated_at"] is None
+
+
+def test_negative_value_is_rejected_on_its_field(client):
+    c, _ = client
+    r = c.put("/settings", json={"quality.max_de": -1})
+    assert r.status_code == 422
+    assert r.json()["detail"]["errors"] == {"quality.max_de": "ค่าต้องไม่ติดลบ"}
+    assert c.get("/settings").json()["updated_at"] is None
+
+
+def test_conflicting_fields_are_rejected(client):
+    c, _ = client
+    r = c.put("/settings", json={"quality.ocf_window": 4, "quality.ocf_min_positive": 5})
+    assert r.status_code == 422
+    assert "ไม่เกินจำนวนไตรมาสที่ดู OCF" in r.json()["detail"]["errors"]["quality.ocf_min_positive"]
+
+
+def test_one_bad_value_saves_nothing(client):
+    c, _ = client
+    c.put("/settings", json={"liquidity.min_avg_traded_value": 5_000_000})
+    r = c.put("/settings", json={"liquidity.min_avg_traded_value": 3_000_000, "quality.min_roe": -0.1})
+    assert r.status_code == 422 and set(r.json()["detail"]["errors"]) == {"quality.min_roe"}
+    body = c.get("/settings").json()
+    assert field(body, "liquidity.min_avg_traded_value")["value"] == 5_000_000
+    assert field(body, "quality.min_roe")["value"] == 0.10
+
+
+def test_locked_key_is_rejected(client):
+    c, _ = client
+    r = c.put("/settings", json={"cdc.fast_length": 5})
+    assert r.status_code == 422 and "cdc.fast_length" in r.json()["detail"]["errors"]
+
+
+def test_empty_state_list_is_rejected(client):
+    c, _ = client
+    r = c.put("/settings", json={"candidates.accepted_states": []})
+    assert r.json()["detail"]["errors"] == {"candidates.accepted_states": "ต้องเลือกอย่างน้อยหนึ่งตัวเลือก"}
+
+
+def test_reset_after_editing_several_fields(client):
+    c, _ = client
+    c.put("/settings", json={"quality.min_roe": 0.08, "quality.max_de": 2, "fair_value.enabled": ["pe_median"]})
+    body = c.delete("/settings").json()
+    assert all(f["value"] == f["default"] for f in body["fields"])
+    assert body["updated_at"] is not None
+
+
+def test_untouched_field_follows_new_yaml_default(tmp_path):
+    import yaml
+
+    from shortlist.config import DEFAULT_PATH
+
+    path = tmp_path / "config.yaml"
+    raw = yaml.safe_load(DEFAULT_PATH.read_text(encoding="utf-8"))
+    path.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    c = TestClient(create_app(db_path=tmp_path / "t.db", config_path=path, sources=fake_sources, today=lambda: TODAY))
+    c.put("/settings", json={"quality.max_de": 2})
+
+    raw["quality"]["min_roe"] = 0.12
+    path.write_text(yaml.safe_dump(raw, allow_unicode=True), encoding="utf-8")
+    assert field(c.get("/settings").json(), "quality.min_roe")["value"] == 0.12
+
+
+def test_values_equal_to_default_are_not_stored(client):
+    c, path = client
+    c.put("/settings", json={"quality.min_roe": 0.1, "quality.max_de": 2})
+    assert db.settings(db.connect(path)) == {"quality.max_de": 2.0}
+
+
+def test_saved_settings_reach_the_next_run(client):
+    c, _ = client
+    c.post("/runs")
+    assert c.get("/stocks/AAA").json()["evaluation"]["liquidity"]["passed"]
+
+    c.put("/settings", json={"liquidity.min_avg_traded_value": 1_000_000_000})
+    assert c.get("/candidates").json()["stale"] is True
+
+    c.post("/runs")
+    assert not c.get("/stocks/AAA").json()["evaluation"]["liquidity"]["passed"]
+    assert c.get("/candidates").json()["stale"] is False

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { FailIcon, StateBadge, Tag } from "@/app/badges";
+import { FailIcon, StaleNotice, StateBadge, Tag } from "@/app/badges";
 import { RunButton } from "@/app/run-button";
 import { engine, type Evaluation, type Failure, type Run } from "@/lib/engine";
 import { baht, pct, thaiDate, thaiDateTime } from "@/lib/format";
 
-type CandidatesResponse = { run: Run | null; candidates: Evaluation[]; failure_count: number };
+type CandidatesResponse = { run: Run | null; candidates: Evaluation[]; failure_count: number; stale: boolean };
 
 export default function Home() {
   return (
@@ -21,7 +21,7 @@ async function CandidateList() {
     engine<CandidatesResponse>("/candidates"),
     engine<{ latest: Run | null }>("/runs/latest"),
   ]);
-  const { run, candidates, failure_count } = data;
+  const { run, candidates, failure_count, stale } = data;
 
   return (
     <div className="space-y-4">
@@ -37,6 +37,7 @@ async function CandidateList() {
         </div>
         <RunButton initial={runs.latest} />
       </div>
+      {stale && run && <StaleNotice />}
 
       {!run ? (
         <p className="rounded-md border border-dashed border-zinc-300 p-8 text-center text-zinc-500 dark:border-zinc-700">

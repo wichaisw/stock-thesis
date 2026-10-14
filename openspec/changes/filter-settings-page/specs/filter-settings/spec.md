@@ -7,7 +7,7 @@
 ## ADDED Requirements
 
 ### Requirement: หน้า settings แสดงเกณฑ์ทั้งหมด
-ระบบ SHALL มีหน้า settings ที่เข้าได้จาก header ทุกหน้า และแสดงเกณฑ์ที่แก้ได้แบ่งตามหมวด liquidity, quality gate, fair value, CDC, risk/reward และ candidates แต่ละช่อง SHALL แสดงชื่อภาษาไทย ค่าปัจจุบัน และค่า default
+ระบบ SHALL มีหน้า settings ที่เข้าได้จาก header ทุกหน้า และจากปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch บนหน้า candidates และแสดงเกณฑ์ที่แก้ได้แบ่งตามหมวด liquidity, quality gate, fair value, CDC, risk/reward และ candidates แต่ละช่อง SHALL แสดงชื่อภาษาไทย ค่าปัจจุบัน และค่า default
 
 #### Scenario: เปิดหน้า settings ครั้งแรก
 - **WHEN** ผู้ใช้ยังไม่เคยแก้ค่าใดและเปิดหน้า settings
@@ -16,6 +16,10 @@
 #### Scenario: ค่าที่แก้แล้วต่างจาก default
 - **WHEN** ผู้ใช้เคยบันทึก traded value ขั้นต่ำเป็น 5 ล้านบาท/วัน
 - **THEN** ช่องนั้นแสดงค่า 5 พร้อมระบุว่า default คือ 10 และทำเครื่องหมายว่าแก้จาก default แล้ว
+
+#### Scenario: ไปหน้า settings จากหน้า candidates
+- **WHEN** ผู้ใช้อยู่ที่หน้า candidates แล้วกดปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch
+- **THEN** ระบบเปิดหน้า settings
 
 ### Requirement: เกณฑ์ที่ไม่อยู่บนหน้า settings
 ระบบ SHALL NOT แสดงสูตร CDC (ราคาตั้งต้น, smoothing, ความยาว EMA fast/slow), รายชื่อ sector การเงิน, catalyst hints, วัน index review และค่าของ batch บนหน้า settings ค่าเหล่านี้ SHALL ยังมาจาก config ตามเดิม

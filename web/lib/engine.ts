@@ -5,6 +5,8 @@ export class EngineError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    // the parsed `detail`, e.g. per-field errors from PUT /settings
+    readonly detail?: unknown,
   ) {
     super(message);
   }
@@ -19,7 +21,8 @@ export async function engine<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new EngineError(body.detail ?? `engine ตอบ ${res.status}`, res.status);
+    const message = typeof body.detail === "string" ? body.detail : `engine ตอบ ${res.status}`;
+    throw new EngineError(message, res.status, body.detail);
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -129,3 +132,22 @@ export type StockDetail = {
 };
 
 export type Failure = { symbol: string; name: string | null; reason: string };
+
+export type SettingUnit = "percent" | "million_baht" | "days" | "quarters" | "months" | "times" | "stocks" | "choice";
+
+export type SettingField = {
+  key: string;
+  section: string;
+  section_title: string;
+  title: string;
+  description: string;
+  unit: SettingUnit;
+  type: "int" | "float" | "choice";
+  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  value: number | string[];
+  default: number | string[];
+};
+
+export type Settings = { fields: SettingField[]; updated_at: string | null; stale: boolean };

@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime
 
 import pandas as pd
 
@@ -58,3 +59,36 @@ def test_connection_works_from_another_thread(tmp_path):
     t.start()
     t.join()
     assert errors == []
+
+
+def test_settings_round_trip_drop_defaults_and_reset(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    assert db.settings(conn) == {} and db.settings_updated_at(conn) is None
+
+    db.save_settings(conn, {"quality.min_roe": 0.08, "quality.max_de": 1.5}, {"quality.min_roe": 0.10, "quality.max_de": 1.5})
+    assert db.settings(conn) == {"quality.min_roe": 0.08}
+    saved_at = db.settings_updated_at(conn)
+
+    db.reset_settings(conn)
+    assert db.settings(conn) == {}
+    assert db.settings_updated_at(conn) > saved_at
+
+
+def test_settings_stale_compares_with_latest_successful_run_start(tmp_path, monkeypatch):
+    conn = db.connect(tmp_path / "t.db")
+    conn.execute("INSERT INTO runs (status, started_at) VALUES ('succeeded', '2026-10-14T17:00:00+07:00')")
+    conn.commit()
+    tz = datetime.fromisoformat("2026-10-14T17:00:00+07:00").tzinfo
+
+    monkeypatch.setattr(db, "_now", lambda: datetime(2026, 10, 14, 16, 0, tzinfo=tz))
+    db.save_settings(conn, {"quality.min_roe": 0.08}, {})
+    assert not db.settings_stale(conn)
+
+    # edited while that run was already going: its results used the old values
+    monkeypatch.setattr(db, "_now", lambda: datetime(2026, 10, 14, 17, 1, tzinfo=tz))
+    db.save_settings(conn, {"quality.min_roe": 0.07}, {})
+    assert db.settings_stale(conn)
+
+    conn.execute("INSERT INTO runs (status, started_at) VALUES ('succeeded', '2026-10-14T18:00:00+07:00')")
+    conn.commit()
+    assert not db.settings_stale(conn)

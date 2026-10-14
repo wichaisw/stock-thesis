@@ -1,5 +1,5 @@
-# เกณฑ์ทั้งหมดของ engine ค่าที่เป็นสัดส่วนเขียนเป็นทศนิยม (0.10 = 10%)
-# โหลดใหม่ทุกครั้งที่รัน batch
+# ค่า default ของเกณฑ์ทั้งหมด ค่าที่เป็นสัดส่วนเขียนเป็นทศนิยม (0.10 = 10%) โหลดใหม่ทุกครั้งที่รัน batch
+# คำอธิบายของแต่ละค่าอยู่ใน shortlist/config.py และ tooltip บนหน้า settings ค่าที่แก้บนเว็บเก็บใน shortlist.db
 
 liquidity:
   window_days: 20
@@ -24,9 +24,8 @@ fair_value:
   lookback_quarters: 20 # 5 ปี
   min_history_points: 4
   min_peers: 3
-  # ส่วนผู้ถือหุ้นเปลี่ยนเกินนี้ระหว่างไตรมาส (ควบรวม เพิ่มทุน) ทำให้ band ย้อนหลังเทียบไม่ได้ จึงติดป้ายเตือน
-  structure_change_threshold: 0.5
-  max_pe: 100 # PE ย้อนหลังที่สูงกว่านี้มาจาก EPS ใกล้ศูนย์ ไม่นำไปคิด band
+  structure_change_threshold: 0.5 # สัดส่วน
+  max_pe: 100 # เท่า
 
 cdc:
   # ตรงกับ CDC ActionZone V3 2020 ที่ตั้งไว้บน TradingView (close 12 26 1) ค่าตรงกันทุกหลักทศนิยม

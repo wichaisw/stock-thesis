@@ -59,7 +59,7 @@ batch โหลด config ตอนเริ่ม จึงเทียบก�
 - แปลงหน่วยใน `lib/format.ts` ด้วย `toDisplay` / `fromDisplay` ตาม `unit` (`percent` ×100, `million_baht` ÷1e6) ช่องตัวเลขใช้ `<input type="number" step="any">` ส่วนช่องที่เป็นรายการใช้ checkbox
 - `Tooltip` ใน `badges.tsx` ทำด้วย CSS ล้วน: ปุ่ม ⓘ ที่ `aria-describedby` ชี้ไปที่ `role="tooltip"` และแสดงด้วย Tailwind `group-hover` / `group-focus-within` ไม่เพิ่ม library
 - ปุ่ม reset ใช้ `window.confirm` ก่อนเรียก `DELETE`
-- เพิ่มลิงก์ "ตั้งค่า" ใน header ของ `layout.tsx` และป้ายเตือนเมื่อ `stale` ที่หน้า candidates พร้อมปุ่มรัน batch ที่มีอยู่แล้ว
+- เพิ่มลิงก์ "ตั้งค่า" ใน header ของ `layout.tsx` และปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch บนหน้า candidates (เป็น `<Link>` ที่หน้าตาเป็นปุ่มรอง เพราะเป็นการเปลี่ยนหน้า ไม่ใช่ action) และป้ายเตือนเมื่อ `stale` ที่หน้า candidates พร้อมปุ่มรัน batch ที่มีอยู่แล้ว
 
 ## Risks / Trade-offs
 

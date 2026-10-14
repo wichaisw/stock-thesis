@@ -14,8 +14,9 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=CONFIG_PATH)
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
     conn = db.connect(args.db)
+    # same values as the web button: config.yaml plus what was edited on the settings page
+    cfg = load_config(args.config, db.settings(conn))
     started = time.monotonic()
     try:
         run_id = batch.run(conn, *batch.default_sources(cfg), cfg, log=lambda m: print(m, flush=True))

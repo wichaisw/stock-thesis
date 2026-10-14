@@ -10,6 +10,22 @@ shortlist/api.py    FastAPI
 scripts/            spike และ backtest
 ```
 
+## ค่าเกณฑ์มาจากไหน
+
+batch, CLI (cron) และหน้ารายละเอียดหุ้นใช้ config ชุดเดียวกัน (`load_config(path, db.settings(conn))`) รวมจากสองที่ตามลำดับ
+
+1. `config.yaml` เป็นค่า default ของทุกเกณฑ์
+2. ค่าที่แก้บนหน้า settings ของเว็บ เก็บในตาราง `settings` ของ `shortlist.db` เฉพาะช่องที่ต่างจาก default ทับค่าจากข้อ 1 แล้วค่อย validate ทั้งก้อน
+
+ช่องที่ไม่เคยแก้บนเว็บจึงใช้ค่าใหม่ทันทีเมื่อแก้ `config.yaml` ส่วนช่องที่แก้บนเว็บแล้วจะไม่เปลี่ยนตาม YAML จนกว่าจะกด reset บนหน้า settings (ลบ `shortlist.db` ก็ทำให้ค่าที่แก้หายเหมือนกัน) ค่าที่แก้มีผลกับ batch ครั้งถัดไป ไม่เปลี่ยนผลของ run ที่รันไปแล้ว
+
+ช่องที่แก้บนเว็บได้คือช่องที่ติด `editable` ใน `shortlist/config.py` ซึ่งมีชื่อ, tooltip, หน่วยและช่วงค่าอยู่ที่เดียวกัน ส่วนช่องเหล่านี้แก้ได้เฉพาะใน `config.yaml`
+
+- สูตร CDC (`cdc.source`, `ap_length`, `fast_length`, `slow_length`) เพราะต้องตรงกับ TradingView
+- `quality.financial_sectors`, ทั้งหมดใน `catalyst` และ `batch`
+
+ถ้าค่าที่เคยแก้บนเว็บเป็นช่องที่ไม่มีแล้วหรือถูกเอาออกจาก `editable` engine จะข้ามค่านั้นพร้อม log เตือน batch ไม่ล้ม `scripts/backtest_cdc.py` ใช้แค่ `config.yaml` เพื่อให้ผล backtest ทำซ้ำได้
+
 ## ผลตรวจข้อมูล
 
 ### ROE และ PE ของ thaifin (task 2.4, 14 ต.ค. 2026)

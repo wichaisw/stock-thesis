@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS manual_events (
     date TEXT NOT NULL,
     text TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    overrides TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -246,3 +251,41 @@ def delete_event(conn: sqlite3.Connection, event_id: int) -> bool:
 def events(conn: sqlite3.Connection, symbol: str) -> list[dict]:
     rows = conn.execute("SELECT * FROM manual_events WHERE symbol=? ORDER BY date", (symbol,))
     return [dict(r) for r in rows]
+
+
+def settings(conn: sqlite3.Connection) -> dict:
+    """Web-edited values keyed "section.field"; only the ones that differ from config.yaml are stored."""
+    row = conn.execute("SELECT overrides FROM settings WHERE id=1").fetchone()
+    return json.loads(row["overrides"]) if row else {}
+
+
+def settings_updated_at(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT updated_at FROM settings WHERE id=1").fetchone()
+    return row["updated_at"] if row else None
+
+
+def save_settings(conn: sqlite3.Connection, values: dict, defaults: dict) -> None:
+    # values equal to the default are dropped so a later change to config.yaml still reaches them
+    _write_settings(conn, {k: v for k, v in values.items() if v != defaults.get(k)})
+
+
+def reset_settings(conn: sqlite3.Connection) -> None:
+    # still bumps updated_at: results computed with the old values are now stale too
+    _write_settings(conn, {})
+
+
+def _write_settings(conn: sqlite3.Connection, overrides: dict) -> None:
+    with conn:
+        conn.execute(
+            "INSERT INTO settings (id, overrides, updated_at) VALUES (1, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET overrides=excluded.overrides, updated_at=excluded.updated_at",
+            (json.dumps(overrides), _now().isoformat()),
+        )
+
+
+def settings_stale(conn: sqlite3.Connection) -> bool:
+    """True when settings changed after the latest successful run loaded its config (at start)."""
+    updated, run = settings_updated_at(conn), latest_successful_run(conn)
+    if not updated or not run:
+        return False
+    return datetime.fromisoformat(updated) > datetime.fromisoformat(run["started_at"])

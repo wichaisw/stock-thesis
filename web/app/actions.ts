@@ -2,7 +2,8 @@
 
 import { refresh } from "next/cache";
 
-import { engine, EngineError, type Run } from "@/lib/engine";
+import { engine, EngineError, type Run, type Settings } from "@/lib/engine";
+import { fromDisplay } from "@/lib/format";
 
 export type ActionResult = { error: string | null };
 
@@ -39,5 +40,46 @@ export async function addEvent(symbol: string, _prev: ActionResult, form: FormDa
 
 export async function deleteEvent(id: number): Promise<void> {
   await engine(`/events/${id}`, { method: "DELETE" });
+  refresh();
+}
+
+export type SettingsResult = {
+  errors: Record<string, string>;
+  message: string | null;
+  // what the user typed, so React's form reset after the action does not wipe it on a failed save
+  values: Record<string, string | string[]> | null;
+};
+
+export async function saveSettings(_prev: SettingsResult, form: FormData): Promise<SettingsResult> {
+  const typed: Record<string, string | string[]> = {};
+  const payload: Record<string, unknown> = {};
+  try {
+    const { fields } = await engine<Settings>("/settings");
+    for (const f of fields) {
+      if (f.type === "choice") {
+        payload[f.key] = typed[f.key] = form.getAll(f.key).map(String);
+      } else {
+        const raw = String(form.get(f.key) ?? "").trim();
+        typed[f.key] = raw;
+        // a blank or non-numeric box goes to the engine as-is so the error lands on that field
+        payload[f.key] = raw === "" || Number.isNaN(Number(raw)) ? raw : fromDisplay(Number(raw), f.unit);
+      }
+    }
+    await engine("/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    const errors = e instanceof EngineError ? (e.detail as { errors?: Record<string, string> } | undefined)?.errors : undefined;
+    if (errors) return { errors, message: "ยังไม่ได้บันทึก มีค่าที่ต้องแก้", values: typed };
+    return { errors: {}, message: e instanceof EngineError ? e.message : "บันทึกไม่ได้", values: typed };
+  }
+  refresh();
+  return { errors: {}, message: null, values: null };
+}
+
+export async function resetSettings(): Promise<void> {
+  await engine("/settings", { method: "DELETE" });
   refresh();
 }

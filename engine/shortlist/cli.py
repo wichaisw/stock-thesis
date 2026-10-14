@@ -1,6 +1,7 @@
 import argparse
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 from shortlist import batch, db
@@ -19,9 +20,13 @@ def main() -> None:
     cfg = load_config(args.config, db.settings(conn))
     started = time.monotonic()
     try:
-        run_id = batch.run(conn, *batch.default_sources(cfg), cfg, log=lambda m: print(m, flush=True))
+        run_id = batch.run(
+            conn, *batch.default_sources(cfg), cfg, log=lambda m: print(f"{datetime.now():%H:%M:%S} {m}", flush=True)
+        )
     except db.RunInProgress as e:
         sys.exit(str(e))
+    except batch.BatchAborted:
+        sys.exit(1)  # the reason is already in the log and saved on the run
     run = db.get_run(conn, run_id)
     assert run is not None
     print(

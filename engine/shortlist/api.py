@@ -20,7 +20,7 @@ log = logging.getLogger("shortlist")
 # uvicorn only configures its own loggers; without this the batch funnel (INFO) is dropped
 if not log.handlers:
     _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s:     %(message)s", "%Y-%m-%d %H:%M:%S"))
     log.addHandler(_handler)
     log.setLevel(logging.INFO)
 

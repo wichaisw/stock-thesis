@@ -80,3 +80,11 @@ def test_unknown_or_locked_override_is_skipped(caplog):
 def test_min_dividend_yield_default_and_type():
     assert load_config().fair_value.min_dividend_yield == 0.005
     assert error_locs({"fair_value.min_dividend_yield": "low"}) == {"fair_value.min_dividend_yield"}
+
+
+def test_batch_limits_default_and_reject_wrong_type():
+    b = load_config().batch
+    assert b.max_consecutive_network_errors == 5
+    assert b.max_run_minutes == 20
+    assert error_locs({"batch.max_consecutive_network_errors": "many"}) == {"batch.max_consecutive_network_errors"}
+    assert error_locs({"batch.max_run_minutes": "long"}) == {"batch.max_run_minutes"}

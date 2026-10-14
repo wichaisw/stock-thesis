@@ -254,6 +254,9 @@ class Batch(Strict):
     price_chunk_size: int
     chunk_delay_seconds: float
     stale_run_minutes: int
+    # a run stops as failed when the network is down or it runs too long (design D3 of batch-timeouts)
+    max_consecutive_network_errors: int = Field(gt=0)
+    max_run_minutes: float = Field(gt=0)
 
 
 class Config(Strict):

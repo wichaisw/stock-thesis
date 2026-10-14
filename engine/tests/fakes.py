@@ -32,9 +32,12 @@ def market_caps(quarterly: pd.DataFrame, shares: float = 1e9) -> pd.DataFrame:
 
 
 class FakePrices:
-    def __init__(self, prices: dict[str, pd.DataFrame], caps: dict[str, pd.DataFrame] | None = None):
+    def __init__(
+        self, prices: dict[str, pd.DataFrame], caps: dict[str, pd.DataFrame] | None = None, unreachable: str | None = None
+    ):
         self.prices = prices
         self.caps = caps or {}
+        self.unreachable = unreachable
 
     def fetch_prices(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
         return {s: self.prices[s] for s in symbols if s in self.prices}
@@ -42,17 +45,31 @@ class FakePrices:
     def fetch_market_caps(self, symbol: str) -> pd.DataFrame:
         return self.caps.get(symbol, pd.DataFrame(columns=MARKET_CAP_COLUMNS))
 
+    def reachable(self) -> str | None:
+        return self.unreachable
+
 
 class FakeFinancials:
-    def __init__(self, stocks: list[StockInfo], quarterly: dict[str, pd.DataFrame], broken: set[str] = frozenset()):
+    def __init__(
+        self,
+        stocks: list[StockInfo],
+        quarterly: dict[str, pd.DataFrame],
+        broken: set[str] = frozenset(),
+        errors: dict[str, str] | None = None,
+    ):
         self.stocks = stocks
         self.quarterly = quarterly
         self.broken = broken
+        self.errors = errors or {}  # symbol -> message raised, like thaifin wrapping a network error
+        self.calls: list[str] = []
 
     def list_stocks(self) -> list[StockInfo]:
         return self.stocks
 
     def fetch_quarterly(self, symbol: str) -> pd.DataFrame:
+        self.calls.append(symbol)
+        if symbol in self.errors:
+            raise ValueError(self.errors[symbol])
         if symbol in self.broken:
             raise ValueError("Finnomena API error")
         return self.quarterly[symbol]

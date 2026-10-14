@@ -73,6 +73,20 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 - **fail 7 ตัว**: ไม่มีราคาจาก yfinance 4 ตัว (ACAP, BLISS, GSTEEL, WELL) และ thaifin ตอบ "not found" 3 ตัว (FLE, GST, TIPAK)
 - funnel: ผ่าน liquidity 169 → ผ่าน quality 59 → median MoS ≥ 10% 32 → candidates 7
 
+### Batch หยุดเมื่อเน็ตล่ม (change `batch-timeouts` task 4.1–4.2, 14 ต.ค. 2026)
+
+**yfinance ไม่บอกว่าเน็ตล่ม** ชี้ proxy ไปที่ port ที่ไม่มีอะไรฟังแล้ว `yf.download` และ `Ticker.history` คืนข้อมูลว่างพร้อม "possibly delisted; no price data found" ไม่ raise (ตรงกับ run 15 ที่ TOP.BK ถูกรายงานว่า possibly delisted) batch จึงถาม `https://query2.finance.yahoo.com` ตรงๆ เมื่อ yfinance คืนข้อมูลว่าง ได้ response ใดก็ตาม = เน็ตใช้ได้ ใช้เวลา 0.13 วินาทีตอนเน็ตปกติ
+
+| รอบ | เงื่อนไข | ผล |
+|---|---|---|
+| run 18 (CLI) | เน็ตปกติ | succeeded 110 วินาที: รายชื่อ 0, ราคา 26, งบและ market cap 82, ประเมิน 1 วินาที fail 8 ตัวและ candidates 17 ตัว ตรงกับ run 17 ทุกตัว |
+| run 19 (ปุ่มใน UI) | เน็ตปกติ | succeeded 104 วินาที log ของ API มีวันเวลาและระยะเวลาทุกช่วงเหมือน CLI |
+| run 20 (CLI) | ทุก request ผ่าน proxy ที่ตาย | failed ใน 8 วินาที ที่ request แรกคือรายชื่อหุ้นของ thaifin: `ValueError: An error occurred while requesting securities data: [Errno 61] Connection refused` เป็นทาง crash เดิม ไม่ผ่านตัวนับ จึงไม่มีข้อความ "เครือข่ายใช้ไม่ได้" และ CLI แสดง traceback → แก้แล้ว (task 2.2) |
+| run 22 (CLI) | ทุก request ผ่าน proxy ที่ตาย หลังแก้ | failed ใน 9 วินาที: "เครือข่ายใช้ไม่ได้: ดึงรายชื่อหุ้นไม่ได้: An error occurred while requesting securities data: [Errno 61] Connection refused" ไม่มี traceback |
+| run 21 (CLI) | เฉพาะ Yahoo ผ่าน proxy ที่ตาย (`NO_PROXY` ให้ host ของ thaifin) | failed ใน 11 วินาที: "เครือข่ายใช้ไม่ได้: หุ้น 5 ตัวติดกัน fail ด้วย error ของเครือข่าย ล่าสุด A5: เชื่อมต่อแหล่งราคาไม่ได้: <urlopen error [Errno 61] Connection refused>" หน้า candidates ยังแสดง list ของ run 19 พร้อมข้อความ "รันล่าสุดล้มเหลว" |
+
+proxy ที่ตายให้ "Connection refused" ทันที ส่วน DNS ล่มจริงอาจช้ากว่านี้ตามเวลาที่ resolver ใช้ แต่ batch หยุดหลังครบ 5 ตัวติดกันเหมือนกัน และมีเพดาน 20 นาทีอีกชั้น
+
 ### Market cap ของ thaifin และ yfinance เทียบกับ SET (task 4.9, 14 ต.ค. 2026)
 
 **thaifin ใช้ไม่ได้** thaifin ส่งค่าจาก Finnomena (`/stock/summary`) มาตรง ๆ โดยไม่คำนวณเอง

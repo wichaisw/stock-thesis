@@ -148,3 +148,41 @@ def test_no_cash_dividend_gives_zero_yield():
     close = pd.Series([10.0, 11.0], index=quarter_ends("2025-03-31", "2025-06-30"))
     caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series(dtype=float), pd.Series(dtype=float))
     assert (caps["dividend_yield_ttm"] == 0).all() and (caps["dps_ttm"] == 0).all()
+
+
+def test_price_source_reachable_on_any_http_reply(monkeypatch):
+    import urllib.error
+    from email.message import Message
+
+    from shortlist.sources import yahoo
+
+    class Reply:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr(yahoo.urllib.request, "urlopen", lambda url, timeout: Reply())
+    assert YahooPrices().reachable() is None
+
+    def too_many(url, timeout):
+        raise urllib.error.HTTPError(url, 429, "Too Many Requests", Message(), None)
+
+    # rate limiting still proves the network reaches Yahoo
+    monkeypatch.setattr(yahoo.urllib.request, "urlopen", too_many)
+    assert YahooPrices().reachable() is None
+
+
+def test_price_source_unreachable_when_dns_fails(monkeypatch):
+    import urllib.error
+
+    from shortlist.sources import yahoo
+
+    def dns_down(url, timeout):
+        raise urllib.error.URLError(OSError(8, "nodename nor servname provided, or not known"))
+
+    monkeypatch.setattr(yahoo.urllib.request, "urlopen", dns_down)
+    msg = YahooPrices().reachable()
+    assert msg.startswith("เชื่อมต่อแหล่งราคาไม่ได้: ")
+    assert "nodename nor servname" in msg

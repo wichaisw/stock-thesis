@@ -1,4 +1,6 @@
 import time
+import urllib.error
+import urllib.request
 from itertools import batched
 
 import pandas as pd
@@ -15,6 +17,9 @@ def clean_prices(raw: pd.DataFrame) -> pd.DataFrame:
     df.index.name = "date"
     df.columns.name = None
     return df
+
+
+REACHABILITY_URL = "https://query2.finance.yahoo.com"
 
 
 class YahooPrices:
@@ -63,6 +68,16 @@ class YahooPrices:
         # funds and some renamed stocks have no share count at all
         shares = _naive(shares) if shares is not None else pd.Series(dtype=float, index=pd.DatetimeIndex([]))
         return quarterly_market_cap(_naive(px["Close"]), _naive(px["Stock Splits"]), shares, _naive(px["Dividends"]))
+
+    def reachable(self) -> str | None:
+        # yfinance reports a network outage as "possibly delisted; no price data found", so ask the host directly
+        try:
+            with urllib.request.urlopen(REACHABILITY_URL, timeout=5):
+                return None
+        except urllib.error.HTTPError:
+            return None  # any HTTP reply, even 429, means the network reaches Yahoo
+        except OSError as e:
+            return f"เชื่อมต่อแหล่งราคาไม่ได้: {e}"
 
 
 def _naive(s: pd.Series) -> pd.Series:

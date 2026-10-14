@@ -47,6 +47,10 @@ class PriceSource(Protocol):
 
     def fetch_market_caps(self, symbol: str) -> pd.DataFrame: ...
 
+    def reachable(self) -> str | None:
+        """None when the source's host answers, else why not. Tells "no data" apart from a network outage."""
+        ...
+
 
 @runtime_checkable
 class FinancialSource(Protocol):

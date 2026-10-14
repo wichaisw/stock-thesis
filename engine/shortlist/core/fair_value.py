@@ -89,7 +89,28 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
                 "reason": reason,
             }
         )
-    return {"price": price, "eps_ttm": num(ttm, 4), "items": items, "summary": summarize(items)}
+    return {
+        "price": price,
+        "eps_ttm": num(ttm, 4),
+        "items": items,
+        "summary": summarize(items),
+        "structure_change": structure_change(hist, cfg.structure_change_threshold),
+    }
+
+
+def structure_change(hist: pd.DataFrame, threshold: float) -> dict:
+    """Mergers, capital raises and restructurings make the band history incomparable.
+
+    Equity, not share count: a par split changes the share count but leaves PE/PBV history intact.
+    """
+    change = hist["equity"].pct_change().abs()
+    if change.dropna().empty or change.max() <= threshold:
+        return {"flag": False, "reason": None}
+    quarter = change.idxmax()
+    return {
+        "flag": True,
+        "reason": f"ส่วนผู้ถือหุ้นเปลี่ยน {change.max():.0%} ใน {quarter} band ย้อนหลังอาจเทียบกับปัจจุบันไม่ได้",
+    }
 
 
 def summarize(items: list[dict]) -> dict:

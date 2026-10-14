@@ -24,6 +24,8 @@ fair_value:
   lookback_quarters: 20  # 5 ปี
   min_history_points: 4
   min_peers: 3
+  # ส่วนผู้ถือหุ้นเปลี่ยนเกินนี้ระหว่างไตรมาส (ควบรวม เพิ่มทุน) ทำให้ band ย้อนหลังเทียบไม่ได้ จึงติดป้ายเตือน
+  structure_change_threshold: 0.5
   max_pe: 100  # PE ย้อนหลังที่สูงกว่านี้มาจาก EPS ใกล้ศูนย์ ไม่นำไปคิด band
 
 cdc:

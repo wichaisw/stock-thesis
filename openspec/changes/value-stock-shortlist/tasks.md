@@ -30,6 +30,7 @@
 - [x] 4.5 ทำ `core/candidates` (เงื่อนไขเข้า list, การเรียงลำดับ) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `candidate-list` รวมถึงกรณีตั้ง config ให้รับทุก CDC state
 - [x] 4.6 เพิ่ม `equity` ในรูปแบบข้อมูลงบกลางและ adapter thaifin แล้วเปลี่ยนเกณฑ์ ROE ใน `core/quality` เป็น ROE TTM ตรวจด้วย test ของ scenario ไตรมาสกำไรสูงผิดปกติและข้อมูล ROE ไม่ครบใน spec `quality-gate`
 - [x] 4.7 เปลี่ยนทุก band ใน `core/fair_value` เป็น median (PE band มี median − 1SD) และตัด PE ที่เกินเกณฑ์ใน config (default 100) ตรวจด้วย test ของ scenario PE ย้อนหลังมีค่าผิดปกติใน spec `fair-value-panel`
+- [x] 4.8 ทำป้ายเตือนโครงสร้างทุนเปลี่ยนใน `core/fair_value` (ส่วนผู้ถือหุ้นเปลี่ยนเกินเกณฑ์ใน config ระหว่างไตรมาส) และแสดงใน fair value panel กับ candidate list ตรวจด้วย test ของ scenario หุ้นควบรวมและแตกพาร์ใน spec `fair-value-panel` และเปิดดู GULF ในหน้าเว็บ
 
 ## 5. Batch
 

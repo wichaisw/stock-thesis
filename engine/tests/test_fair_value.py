@@ -9,7 +9,7 @@ CFG = load_config().fair_value
 
 def history(n: int = 20, eps: float = 1.0, close: float = 15.0, bvps: float = 10.0, dy: float | None = 0.04):
     return pd.DataFrame(
-        {"eps": [eps] * n, "close": [close] * n, "bvps": [bvps] * n, "dividend_yield": [dy] * n},
+        {"eps": [eps] * n, "close": [close] * n, "bvps": [bvps] * n, "dividend_yield": [dy] * n, "equity": [1e10] * n},
         index=[f"q{i}" for i in range(n)],
     )
 
@@ -94,6 +94,23 @@ def test_dividend_paid_earlier_in_the_year_still_counts():
     q.iloc[-2:, q.columns.get_loc("dividend_yield")] = 0.0
     r = fair_value.evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
     assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(15.0)
+
+
+def test_merger_flags_structure_change():
+    # GULF: equity jumped 173% in one quarter after the merger
+    q = history()
+    q.iloc[12:, q.columns.get_loc("equity")] = 2.73e10
+    r = fair_value.evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
+    sc = r["structure_change"]
+    assert sc["flag"] and "173%" in sc["reason"] and "q12" in sc["reason"]
+
+
+def test_par_split_does_not_flag():
+    # equity barely moves on a split; share count is deliberately ignored
+    q = history()
+    q.iloc[12:, q.columns.get_loc("equity")] = 1.12e10
+    r = fair_value.evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
+    assert not r["structure_change"]["flag"]
 
 
 def test_fewer_than_three_peers_is_na():

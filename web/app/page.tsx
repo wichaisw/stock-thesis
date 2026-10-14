@@ -131,6 +131,11 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                     </Tag>
                   )}
                   {rr.low_rrr && <Tag tone="red">RRR ต่ำ</Tag>}
+                  {c.fair_value!.structure_change.flag && (
+                    <Tag tone="red" title={c.fair_value!.structure_change.reason ?? undefined}>
+                      โครงสร้างทุนเปลี่ยน
+                    </Tag>
+                  )}
                 </td>
               </tr>
             );

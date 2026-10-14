@@ -37,6 +37,7 @@ class FairValue(Strict):
     min_history_points: int
     min_peers: int
     max_pe: float
+    structure_change_threshold: float
 
 
 class Cdc(Strict):

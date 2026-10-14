@@ -180,13 +180,18 @@ function Gates({ ev }: { ev: Evaluation }) {
 
 function FairValuePanel({ ev }: { ev: Evaluation }) {
   if (!ev.fair_value) return null;
-  const { items, summary, eps_ttm } = ev.fair_value;
+  const { items, summary, eps_ttm, structure_change } = ev.fair_value;
   return (
     <Section title="Fair value panel">
       <p className="mb-2 text-sm">
         <b>{summary.label}</b> · MoS ต่ำสุด {pct(summary.min_mos)} · median {pct(summary.median_mos)} · สูงสุด{" "}
         {pct(summary.max_mos)} · EPS TTM {eps_ttm ?? "N/A"}
       </p>
+      {structure_change.flag && (
+        <p className="mb-2 text-sm">
+          <Tag tone="red">โครงสร้างทุนเปลี่ยน</Tag> {structure_change.reason}
+        </p>
+      )}
       <table className="w-full text-sm">
         <thead className="text-left text-zinc-500">
           <tr>

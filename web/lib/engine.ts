@@ -75,7 +75,13 @@ export type Evaluation = {
   candidate_rank: number | null;
   liquidity: { passed: boolean; value: number; threshold: number; reason: string };
   quality: { passed: boolean; checks: Check[]; inflection: { flag: boolean; reason: string | null } } | null;
-  fair_value: { price: number; eps_ttm: number | null; items: FairValueItem[]; summary: FairValueSummary } | null;
+  fair_value: {
+    price: number;
+    eps_ttm: number | null;
+    items: FairValueItem[];
+    summary: FairValueSummary;
+    structure_change: { flag: boolean; reason: string | null };
+  } | null;
   cdc: {
     state: CdcState | null;
     fast?: number;

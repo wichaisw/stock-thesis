@@ -20,10 +20,11 @@ quality:
     - Financials
 
 fair_value:
-  enabled: [pe_mean, pe_minus_1sd, pbv_mean, dividend_yield_mean, peer_pe]
+  enabled: [pe_median, pe_minus_1sd, pbv_median, dividend_yield_median, peer_pe]
   lookback_quarters: 20  # 5 ปี
   min_history_points: 4
   min_peers: 3
+  max_pe: 100  # PE ย้อนหลังที่สูงกว่านี้มาจาก EPS ใกล้ศูนย์ ไม่นำไปคิด band
 
 cdc:
   ap_length: 2

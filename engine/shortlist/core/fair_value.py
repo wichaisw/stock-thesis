@@ -6,10 +6,10 @@ from shortlist.config import FairValue
 from shortlist.core import num
 
 LABELS = {
-    "pe_mean": "PE band (ค่าเฉลี่ย 5 ปี)",
-    "pe_minus_1sd": "PE band (ค่าเฉลี่ย − 1SD)",
-    "pbv_mean": "PBV band (ค่าเฉลี่ย 5 ปี)",
-    "dividend_yield_mean": "Dividend yield band (ค่าเฉลี่ย 5 ปี)",
+    "pe_median": "PE band (median 5 ปี)",
+    "pe_minus_1sd": "PE band (median − 1SD)",
+    "pbv_median": "PBV band (median 5 ปี)",
+    "dividend_yield_median": "Dividend yield band (median 5 ปี)",
     "peer_pe": "Peer PE (median ของ sector)",
 }
 
@@ -33,34 +33,34 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
     reported = quarterly[quarterly["eps"].notna()]
     hist = reported.tail(cfg.lookback_quarters)
     ttm = eps_ttm(reported)
-    # ponytail: plain mean of PE history; a near-zero EPS quarter can skew it, clip outliers if it bites
     pe_hist = (reported["close"] / reported["eps"].rolling(4).sum()).tail(cfg.lookback_quarters)
-    pe_hist = pe_hist[pe_hist > 0]
+    # a near-zero EPS TTM gives a PE in the hundreds, which would blow up the SD
+    pe_hist = pe_hist[(pe_hist > 0) & (pe_hist <= cfg.max_pe)]
 
     def fair(method: str) -> tuple[float | None, str | None]:
-        if method in ("pe_mean", "pe_minus_1sd", "peer_pe"):
+        if method in ("pe_median", "pe_minus_1sd", "peer_pe"):
             if ttm is None:
                 return None, "งบไม่ครบ 4 ไตรมาสสำหรับ EPS TTM"
             if ttm <= 0:
                 return None, "EPS TTM ติดลบ"
-        if method in ("pe_mean", "pe_minus_1sd"):
+        if method in ("pe_median", "pe_minus_1sd"):
             if len(pe_hist) < cfg.min_history_points:
                 return None, "ข้อมูล PE ย้อนหลังไม่พอ"
-            multiple = pe_hist.mean() - (pe_hist.std() if method == "pe_minus_1sd" else 0)
+            multiple = pe_hist.median() - (pe_hist.std() if method == "pe_minus_1sd" else 0)
             if multiple <= 0:
-                return None, "PE ค่าเฉลี่ย − 1SD ไม่เป็นบวก"
+                return None, "PE median − 1SD ไม่เป็นบวก"
             return multiple * ttm, None
         if method == "peer_pe":
             if len(peer_pes) < cfg.min_peers:
                 return None, f"peer ใน sector มี {len(peer_pes)} ตัว น้อยกว่า {cfg.min_peers}"
             return median(peer_pes) * ttm, None
-        if method == "pbv_mean":
+        if method == "pbv_median":
             with_bv = hist[hist["bvps"] > 0]
             pbv = with_bv["close"] / with_bv["bvps"]
             if len(pbv.dropna()) < cfg.min_history_points:
                 return None, "ข้อมูล PBV ย้อนหลังไม่พอ"
-            return pbv.mean() * with_bv["bvps"].iloc[-1], None
-        if method == "dividend_yield_mean":
+            return pbv.median() * with_bv["bvps"].iloc[-1], None
+        if method == "dividend_yield_median":
             yields = hist["dividend_yield"].dropna()
             paid = yields[yields > 0]
             if paid.empty:
@@ -69,7 +69,7 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
                 return None, "ไม่ได้จ่ายปันผลล่าสุด"
             # thaifin has no DPS; yield × that quarter's close recovers it
             dps = yields.iloc[-1] * hist.loc[yields.index[-1], "close"]
-            return dps / paid.mean(), None
+            return dps / paid.median(), None
         raise ValueError(method)
 
     items = []

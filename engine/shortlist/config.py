@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
 CdcState = Literal["bear-far", "bear-approaching", "just-crossed", "bull"]
-FairValueMethod = Literal["pe_mean", "pe_minus_1sd", "pbv_mean", "dividend_yield_mean", "peer_pe"]
+FairValueMethod = Literal["pe_median", "pe_minus_1sd", "pbv_median", "dividend_yield_median", "peer_pe"]
 
 
 class Strict(BaseModel):
@@ -36,6 +36,7 @@ class FairValue(Strict):
     lookback_quarters: int
     min_history_points: int
     min_peers: int
+    max_pe: float
 
 
 class Cdc(Strict):

@@ -1,7 +1,9 @@
+from datetime import date
+
 import numpy as np
 import pandas as pd
 
-from shortlist.sources import MARKET_CAP_COLUMNS, QUARTERLY_COLUMNS, StockInfo
+from shortlist.sources import INVESTOR_TYPES, MARKET_CAP_COLUMNS, QUARTERLY_COLUMNS, InvestorFlow, StockInfo
 
 
 def price_history(days: int = 120, start: float = 10.0, end: float = 12.0) -> pd.DataFrame:
@@ -73,3 +75,19 @@ class FakeFinancials:
         if symbol in self.broken:
             raise ValueError("Finnomena API error")
         return self.quarterly[symbol]
+
+
+def investor_flow(day: date = date(2026, 10, 14), foreign_buy: float = 50e9) -> InvestorFlow:
+    buy = {t: 10e9 for t in INVESTOR_TYPES} | {"foreign": foreign_buy}
+    return InvestorFlow(day, sum(buy.values()), buy, dict(buy))
+
+
+class FakeInvestorFlow:
+    def __init__(self, flow: InvestorFlow | None = None, error: Exception | None = None):
+        self.flow = flow or investor_flow()
+        self.error = error
+
+    def fetch_investor_flow(self) -> InvestorFlow:
+        if self.error:
+            raise self.error
+        return self.flow

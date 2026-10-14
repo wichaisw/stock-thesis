@@ -150,3 +150,14 @@ export type SettingField = {
 };
 
 export type Settings = { fields: SettingField[]; updated_at: string | null; stale: boolean };
+
+export const INVESTOR_TYPES = ["institution", "proprietary", "foreign", "individual"] as const;
+export type InvestorType = (typeof INVESTOR_TYPES)[number];
+
+// one trading day, values in baht
+export type InvestorFlowDay = {
+  date: string;
+  total_value: number;
+  fetched_at: string;
+  intraday: boolean;
+} & Record<`${InvestorType}_${"buy" | "sell"}`, number>;

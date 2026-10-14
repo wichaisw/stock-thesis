@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.143.0",
     "pandas>=3.0.6",
+    "playwright>=1.64.0",
     "pydantic>=2.14.1",
     "pyyaml>=6.0.3",
     "thaifin>=1.1.0",

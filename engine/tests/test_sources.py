@@ -1,8 +1,13 @@
+import json
+from datetime import date
+from pathlib import Path
+
 import pytest
 import numpy as np
 import pandas as pd
 
-from shortlist.sources import FinancialSource, PriceSource
+from shortlist.sources import FinancialSource, InvestorFlowSource, PriceSource
+from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
 from shortlist.sources.yahoo import YahooPrices, clean_prices, quarterly_market_cap
 
@@ -186,3 +191,37 @@ def test_price_source_unreachable_when_dns_fails(monkeypatch):
     msg = YahooPrices().reachable()
     assert msg.startswith("เชื่อมต่อแหล่งราคาไม่ได้: ")
     assert "nodename nor servname" in msg
+
+
+INVESTOR_FIXTURE = Path(__file__).parent / "fixtures" / "investor_type_2026-10-14.json"
+
+
+def investor_raw() -> dict:
+    return json.loads(INVESTOR_FIXTURE.read_text())
+
+
+def test_investor_flow_adapter_satisfies_protocol() -> None:
+    assert isinstance(SetInvestorFlow(), InvestorFlowSource)
+
+
+def test_investor_flow_parses_set_fixture():
+    flow = to_investor_flow(investor_raw())
+    assert flow.date == date(2026, 10, 14)
+    assert flow.total_value == pytest.approx(80_644_591_129.58)
+    assert flow.buy["foreign"] == pytest.approx(53_230_152_423.44)
+    assert flow.sell["foreign"] == pytest.approx(47_539_165_411.55)
+    assert set(flow.buy) == set(flow.sell) == {"institution", "proprietary", "foreign", "individual"}
+
+
+def test_investor_flow_rejects_missing_type():
+    raw = investor_raw()
+    raw["investors"] = [i for i in raw["investors"] if i["type"] != "proprietary"]
+    with pytest.raises(ValueError, match="proprietary"):
+        to_investor_flow(raw)
+
+
+def test_investor_flow_rejects_sum_off_total():
+    raw = investor_raw()
+    raw["investors"][0]["sellValue"] *= 3
+    with pytest.raises(ValueError, match="ขาย"):
+        to_investor_flow(raw)

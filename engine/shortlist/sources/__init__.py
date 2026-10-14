@@ -11,6 +11,7 @@ quarter's last trading day, and dividend_yield_ttm is that over the close; stock
 """
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
@@ -57,3 +58,23 @@ class FinancialSource(Protocol):
     def list_stocks(self) -> list[StockInfo]: ...
 
     def fetch_quarterly(self, symbol: str) -> pd.DataFrame: ...
+
+
+INVESTOR_TYPES = ("institution", "proprietary", "foreign", "individual")
+
+
+@dataclass(frozen=True)
+class InvestorFlow:
+    """One trading day of SET buy/sell value by investor type, in baht, keyed by INVESTOR_TYPES."""
+
+    date: date
+    total_value: float
+    buy: dict[str, float]
+    sell: dict[str, float]
+
+
+@runtime_checkable
+class InvestorFlowSource(Protocol):
+    def fetch_investor_flow(self) -> InvestorFlow:
+        """The latest trading day. Raises ValueError when the data fails validation."""
+        ...

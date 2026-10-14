@@ -1,10 +1,14 @@
 import threading
-from datetime import datetime
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from shortlist import db
 from shortlist.sources import QUARTERLY_COLUMNS, StockInfo
+from tests.fakes import investor_flow
+
+BKK = ZoneInfo("Asia/Bangkok")
 
 
 def test_run_and_evaluation_round_trip(tmp_path):
@@ -92,3 +96,33 @@ def test_settings_stale_compares_with_latest_successful_run_start(tmp_path, monk
     conn.execute("INSERT INTO runs (status, started_at) VALUES ('succeeded', '2026-10-14T18:00:00+07:00')")
     conn.commit()
     assert not db.settings_stale(conn)
+
+
+def test_investor_flow_same_day_keeps_latest_and_flags_intraday(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.save_investor_flow(conn, investor_flow(foreign_buy=40e9), datetime(2026, 10, 14, 14, 0, tzinfo=BKK))
+    [row] = db.investor_flow(conn)
+    assert row["intraday"] is True
+
+    db.save_investor_flow(conn, investor_flow(foreign_buy=50e9), datetime(2026, 10, 14, 18, 30, tzinfo=BKK))
+    [row] = db.investor_flow(conn)
+    assert row["foreign_buy"] == 50e9 and row["intraday"] is False
+
+
+def test_investor_flow_intraday_boundary_is_1700_bangkok(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 13)), datetime(2026, 10, 13, 16, 59, tzinfo=BKK))
+    # same instant as 17:00 Bangkok, stored from a machine on UTC
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14)), datetime(2026, 10, 14, 10, 0, tzinfo=ZoneInfo("UTC")))
+    rows = db.investor_flow(conn)
+    assert [(r["date"], r["intraday"]) for r in rows] == [("2026-10-14", False), ("2026-10-13", True)]
+    assert len(db.investor_flow(conn, limit=1)) == 1
+
+
+def test_save_run_keeps_investor_flow_history(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 13)))
+    for _ in range(2):
+        run_id = db.start_run(conn, stale_minutes=30)
+        db.save_run(conn, run_id, db.RunResults([], {}, {}, [], {}, None))
+    assert [r["date"] for r in db.investor_flow(conn)] == ["2026-10-13"]

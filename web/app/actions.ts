@@ -16,6 +16,16 @@ export async function startRun(): Promise<ActionResult> {
   }
 }
 
+export async function fetchInvestorFlow(): Promise<ActionResult> {
+  try {
+    await engine("/investor-flow", { method: "POST" });
+  } catch (e) {
+    return { error: e instanceof EngineError ? e.message : "ดึงข้อมูลไม่ได้" };
+  }
+  refresh();
+  return { error: null };
+}
+
 export async function latestRun(): Promise<Run | null> {
   return (await engine<{ latest: Run | null }>("/runs/latest")).latest;
 }

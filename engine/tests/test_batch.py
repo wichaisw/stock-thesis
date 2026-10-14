@@ -6,7 +6,15 @@ import pytest
 from shortlist import batch, db
 from shortlist.config import load_config
 from shortlist.sources import StockInfo
-from tests.fakes import FakeFinancials, FakePrices, healthy_quarters, market_caps, price_history
+from tests.fakes import (
+    FakeFinancials,
+    FakeInvestorFlow,
+    FakePrices,
+    healthy_quarters,
+    investor_flow,
+    market_caps,
+    price_history,
+)
 
 CFG = load_config()
 
@@ -233,3 +241,32 @@ def test_network_error_on_the_stock_list_stops_with_a_readable_reason(tmp_path):
     assert run["status"] == "failed"
     assert run["error"].startswith("เครือข่ายใช้ไม่ได้: ดึงรายชื่อหุ้นไม่ได้: ")
     assert "Connection refused" in run["error"]
+
+
+def test_investor_flow_is_recorded_after_the_run(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    lines: list[str] = []
+    batch.run(conn, *fake_sources(), CFG, log=lines.append, flow_src=FakeInvestorFlow())
+    assert [r["date"] for r in db.investor_flow(conn)] == ["2026-10-14"]
+    assert any("เก็บข้อมูลประเภทนักลงทุนของวันที่ 2026-10-14" in ln for ln in lines)
+
+
+@pytest.mark.parametrize(
+    "error, logged",
+    [
+        (ConnectionError("Incapsula blocked"), "ดึงข้อมูลประเภทนักลงทุนไม่ได้"),
+        (ValueError("ขาดประเภทนักลงทุน: proprietary"), "ไม่ผ่านการตรวจ"),
+    ],
+)
+def test_investor_flow_failure_leaves_run_and_history_alone(tmp_path, error, logged):
+    conn = db.connect(tmp_path / "t.db")
+    batch.run(conn, *fake_sources(), CFG, flow_src=FakeInvestorFlow(investor_flow(foreign_buy=40e9)))
+    lines: list[str] = []
+    run_id = batch.run(conn, *fake_sources(), CFG, log=lines.append, flow_src=FakeInvestorFlow(error=error))
+
+    run = db.get_run(conn, run_id)
+    assert run["status"] == "succeeded" and (run["succeeded"], run["failed"]) == (2, 2)
+    assert db.evaluation(conn, run_id, "AAA") is not None
+    [row] = db.investor_flow(conn)
+    assert row["foreign_buy"] == 40e9
+    assert any(logged in ln and str(error) in ln for ln in lines), lines

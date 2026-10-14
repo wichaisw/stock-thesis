@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,7 +7,7 @@ from fastapi.testclient import TestClient
 from shortlist import db
 from shortlist.api import create_app
 from shortlist.sources import StockInfo
-from tests.fakes import FakeFinancials, FakePrices, healthy_quarters, price_history
+from tests.fakes import FakeFinancials, FakeInvestorFlow, FakePrices, healthy_quarters, investor_flow, price_history
 
 TODAY = date(2026, 10, 14)
 
@@ -14,7 +15,7 @@ TODAY = date(2026, 10, 14)
 def fake_sources(_cfg):
     stocks = [StockInfo("AAA", "A Co", "Tourism & Leisure", "SET"), StockInfo("BBB", "B Co", "Commerce", "SET")]
     prices = FakePrices({"AAA": price_history(120, 14, 11)})
-    return prices, FakeFinancials(stocks, {"AAA": healthy_quarters()})
+    return prices, FakeFinancials(stocks, {"AAA": healthy_quarters()}), FakeInvestorFlow()
 
 
 @pytest.fixture
@@ -205,3 +206,34 @@ def test_web_started_batch_logs_the_funnel(client, caplog):
     with caplog.at_level("INFO", logger="shortlist"):
         c.post("/runs")
     assert "ผ่าน liquidity" in caplog.text and "candidates" in caplog.text
+
+
+def test_manual_investor_flow_fetch_saves_or_reports_why(tmp_path):
+    flow_src = FakeInvestorFlow()
+
+    def sources(_cfg):
+        return *fake_sources(_cfg)[:2], flow_src
+
+    c = TestClient(create_app(db_path=tmp_path / "t.db", sources=sources, today=lambda: TODAY))
+    res = c.post("/investor-flow")
+    assert res.status_code == 200 and res.json()["date"] == "2026-10-14"
+
+    flow_src.error = ConnectionError("Incapsula blocked")
+    res = c.post("/investor-flow")
+    assert res.status_code == 502 and "Incapsula blocked" in res.json()["detail"]
+    assert [r["foreign_buy"] for r in c.get("/investor-flow").json()] == [50e9]
+
+
+def test_investor_flow_newest_first_with_limit_and_intraday(client):
+    c, path = client
+    assert c.get("/investor-flow").json() == []
+    conn = db.connect(path)
+    bkk = ZoneInfo("Asia/Bangkok")
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 13)), datetime(2026, 10, 13, 18, 30, tzinfo=bkk))
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14)), datetime(2026, 10, 14, 14, 0, tzinfo=bkk))
+
+    rows = c.get("/investor-flow").json()
+    assert [(r["date"], r["intraday"]) for r in rows] == [("2026-10-14", True), ("2026-10-13", False)]
+    assert rows[0]["foreign_buy"] == 50e9 and "total_value" in rows[0] and "fetched_at" in rows[0]
+    assert [r["date"] for r in c.get("/investor-flow?limit=1").json()] == ["2026-10-14"]
+    assert c.get("/investor-flow?limit=0").status_code == 422

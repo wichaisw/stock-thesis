@@ -10,6 +10,19 @@ shortlist/api.py    FastAPI
 scripts/            spike และ backtest
 ```
 
+## มูลค่าซื้อขายตามประเภทนักลงทุน
+
+`shortlist/sources/set_investor.py` เปิด set.or.th ด้วย Playwright Chromium แบบ headless แล้ว `fetch('/api/set/market/SET/investor-type')` จากในหน้า เพราะ HTTP client ปกติโดน Incapsula ตอบ 403 API นี้ SET ไม่ได้เปิดให้ใช้อย่างเป็นทางการ และให้แค่วันซื้อขายล่าสุด ต้องติดตั้ง browser หนึ่งครั้ง
+
+```sh
+uv run playwright install chromium
+```
+
+- batch เรียกหลัง `save_run` ทุกครั้ง (CLI และปุ่มบนเว็บ) ถ้าดึงไม่ได้หรือข้อมูลไม่ผ่านการตรวจ (ครบ 4 ประเภท, ผลรวมซื้อและขายต่างจากมูลค่ารวมไม่เกิน 1%) แค่ log run ยังสำเร็จ
+- ตาราง `investor_flow` หนึ่งแถวต่อวันตาม `asOfDate` ของ SET ไม่ถูกลบตอน run ใหม่ ประวัติจึงเริ่มจากวันแรกที่รัน
+- รันวันเดียวกันซ้ำจะเขียนทับ แถวที่ `fetched_at` ก่อน 17:00 น. (เวลาไทย) ของวันนั้นเป็นข้อมูลระหว่างวัน (`intraday`) ยังไม่ใช่ค่าปิดตลาด
+- `GET /investor-flow?limit=60` คืนใหม่สุดก่อน หน่วยบาท
+
 ## ค่าเกณฑ์มาจากไหน
 
 batch, CLI (cron) และหน้ารายละเอียดหุ้นใช้ config ชุดเดียวกัน (`load_config(path, db.settings(conn))`) รวมจากสองที่ตามลำดับ
@@ -86,6 +99,12 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 | run 21 (CLI) | เฉพาะ Yahoo ผ่าน proxy ที่ตาย (`NO_PROXY` ให้ host ของ thaifin) | failed ใน 11 วินาที: "เครือข่ายใช้ไม่ได้: หุ้น 5 ตัวติดกัน fail ด้วย error ของเครือข่าย ล่าสุด A5: เชื่อมต่อแหล่งราคาไม่ได้: <urlopen error [Errno 61] Connection refused>" หน้า candidates ยังแสดง list ของ run 19 พร้อมข้อความ "รันล่าสุดล้มเหลว" |
 
 proxy ที่ตายให้ "Connection refused" ทันที ส่วน DNS ล่มจริงอาจช้ากว่านี้ตามเวลาที่ resolver ใช้ แต่ batch หยุดหลังครบ 5 ตัวติดกันเหมือนกัน และมีเพดาน 20 นาทีอีกชั้น
+
+### Headless Chromium กับ API ประเภทนักลงทุนของ SET (change `investor-type-flow` task 1.1, 15 ต.ค. 2026)
+
+`uv run python scripts/spike_investor_flow.py` เปิด `set.or.th/th/market/statistics/investor-type` ด้วย Playwright Chromium แบบ headless แล้ว `fetch('/api/set/market/SET/investor-type')` จากในหน้า **ผ่าน Incapsula** หน้าและ API ได้ 200 ทั้งคู่ ใช้เวลา 4.9 วินาทีรวมเปิดและปิด browser
+
+ได้ `asOfDate` 2026-10-14 (รันตอน 00:43 น. ของ 15 ต.ค. จึงยังเป็นวันซื้อขายก่อนหน้า) ครบ 4 ประเภท (`institution`, `proprietary`, `foreign`, `individual`) มูลค่ารวม 80,644.59 ล้านบาท ต่างชาติซื้อ 53,230.15 ขาย 47,539.17 สุทธิ +5,690.99 ล้านบาท ตรงกับหน้า SET ของวันที่ 14 ต.ค. JSON ชุดนี้เก็บเป็น `tests/fixtures/investor_type_2026-10-14.json`
 
 ### Market cap ของ thaifin และ yfinance เทียบกับ SET (task 4.9, 14 ต.ค. 2026)
 

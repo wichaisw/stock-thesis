@@ -6,6 +6,9 @@ import { RunButton } from "@/app/run-button";
 import { engine, type Evaluation, type Failure, type Run } from "@/lib/engine";
 import { baht, pct, thaiDate, thaiDateTime } from "@/lib/format";
 
+const secondaryButton =
+  "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
+
 type CandidatesResponse = { run: Run | null; candidates: Evaluation[]; failure_count: number; stale: boolean };
 
 export default function Home() {
@@ -37,10 +40,10 @@ async function CandidateList() {
         </div>
         <div className="ml-auto">
           <RunButton initial={runs.latest}>
-            <Link
-              href="/settings"
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-            >
+            <Link href="/investor-flow" className={secondaryButton}>
+              ประเภทนักลงทุน
+            </Link>
+            <Link href="/settings" className={secondaryButton}>
               ปรับเกณฑ์
             </Link>
           </RunButton>
@@ -139,10 +142,10 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                     </Tag>
                   )}
                   {rr.low_rrr && <Tag tone="red">RRR ต่ำ</Tag>}
+                  {rr.high_upside && <Tag tone="red">upside สูงผิดปกติ</Tag>}
                   {c.fair_value!.structure_change.flag && (
                     <Tag tone="red" title={c.fair_value!.structure_change.reason ?? undefined}>
                       โครงสร้างทุนเปลี่ยน
-                  {rr.high_upside && <Tag tone="red">upside สูงผิดปกติ</Tag>}
                     </Tag>
                   )}
                   {c.fair_value!.history_gap?.flag && (

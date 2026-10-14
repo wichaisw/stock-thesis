@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typing import Any, get_args
 
-from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from shortlist import batch, db
@@ -129,11 +129,11 @@ def create_app(
         try:
             try:
                 cfg = current_config(c)
-                prices, financials = sources(cfg)
+                prices, financials, flow = sources(cfg)
             except Exception as e:
                 db.fail_run(c, run_id, f"{type(e).__name__}: {e}")
                 raise
-            batch.execute(c, run_id, prices, financials, cfg, log=log.info)
+            batch.execute(c, run_id, prices, financials, cfg, log=log.info, flow_src=flow)
         except Exception:
             # the run is already marked failed; keep the server alive
             log.exception("batch run %s failed", run_id)
@@ -220,6 +220,18 @@ def create_app(
                 for s, r in db.failures(c, run["id"]).items()
             ],
         }
+
+    @app.get("/investor-flow")
+    def investor_flow(limit: int = Query(60, ge=1), c: sqlite3.Connection = Depends(conn)) -> list[dict]:
+        return db.investor_flow(c, limit)
+
+    @app.post("/investor-flow")
+    def fetch_investor_flow(c: sqlite3.Connection = Depends(conn)) -> dict:
+        # waits for the result: one page load takes a few seconds, unlike a whole batch
+        error = batch.record_investor_flow(c, sources(current_config(c))[2], log.info)
+        if error:
+            raise HTTPException(502, error)
+        return db.investor_flow(c, 1)[0]
 
     @app.get("/stocks/search")
     def search(q: str, c: sqlite3.Connection = Depends(conn)) -> list[dict]:

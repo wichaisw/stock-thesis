@@ -1,14 +1,19 @@
 import json
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from shortlist.sources import QUARTERLY_COLUMNS, StockInfo
+from shortlist.sources import INVESTOR_TYPES, QUARTERLY_COLUMNS, InvestorFlow, StockInfo
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "shortlist.db"
+
+FLOW_COLUMNS = [f"{t}_{side}" for t in INVESTOR_TYPES for side in ("buy", "sell")]
+# SET closes 16:30 and the ATC round ends around 16:40; anything fetched earlier on that day is intraday
+MARKET_CLOSED_AT = time(17, tzinfo=ZoneInfo("Asia/Bangkok"))
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS stocks (
@@ -58,6 +63,13 @@ CREATE TABLE IF NOT EXISTS manual_events (
     symbol TEXT NOT NULL,
     date TEXT NOT NULL,
     text TEXT NOT NULL
+);
+-- kept across runs: SET only serves the latest day, so this is the only history there is
+CREATE TABLE IF NOT EXISTS investor_flow (
+    date TEXT PRIMARY KEY,
+    total_value REAL NOT NULL,
+    {", ".join(f"{c} REAL NOT NULL" for c in FLOW_COLUMNS)},
+    fetched_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -289,3 +301,23 @@ def settings_stale(conn: sqlite3.Connection) -> bool:
     if not updated or not run:
         return False
     return datetime.fromisoformat(updated) > datetime.fromisoformat(run["started_at"])
+
+
+def save_investor_flow(conn: sqlite3.Connection, flow: InvestorFlow, fetched_at: datetime | None = None) -> None:
+    """One row per trading day; a later fetch of the same day replaces it."""
+    values = [v for t in INVESTOR_TYPES for v in (flow.buy[t], flow.sell[t])]
+    with conn:
+        conn.execute(
+            f"INSERT OR REPLACE INTO investor_flow VALUES (?, ?, {', '.join('?' * len(FLOW_COLUMNS))}, ?)",
+            (flow.date.isoformat(), flow.total_value, *values, (fetched_at or _now()).isoformat()),
+        )
+
+
+def investor_flow(conn: sqlite3.Connection, limit: int = 60) -> list[dict]:
+    """Newest day first. `intraday` is True when the row was fetched before the market closed that day."""
+    rows = conn.execute("SELECT * FROM investor_flow ORDER BY date DESC LIMIT ?", (limit,))
+    out = []
+    for r in rows:
+        closed = datetime.combine(date.fromisoformat(r["date"]), MARKET_CLOSED_AT)
+        out.append({**dict(r), "intraday": datetime.fromisoformat(r["fetched_at"]) < closed})
+    return out

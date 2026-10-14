@@ -7,7 +7,7 @@ import pandas as pd
 from shortlist import db
 from shortlist.config import Batch, Config
 from shortlist.core import candidates, catalyst, cdc, fair_value, num, quality, risk_reward
-from shortlist.sources import FinancialSource, PriceSource, StockInfo
+from shortlist.sources import FinancialSource, InvestorFlowSource, PriceSource, StockInfo
 
 Log = Callable[[str], None]
 
@@ -70,13 +70,18 @@ class RunGuard:
             raise BatchAborted(f"ใช้เวลาเกิน {self.max_minutes:g} นาทีระหว่าง{phase}")
 
 
-def default_sources(cfg: Config) -> tuple[PriceSource, FinancialSource]:
+def default_sources(cfg: Config) -> tuple[PriceSource, FinancialSource, InvestorFlowSource]:
     # imported here so tests and the API can load without touching network libraries
+    from shortlist.sources.set_investor import SetInvestorFlow
     from shortlist.sources.thaifin_source import ThaifinFinancials
     from shortlist.sources.yahoo import YahooPrices
 
     b = cfg.batch
-    return YahooPrices(b.price_period, b.price_chunk_size, b.chunk_delay_seconds), ThaifinFinancials(b.markets)
+    return (
+        YahooPrices(b.price_period, b.price_chunk_size, b.chunk_delay_seconds),
+        ThaifinFinancials(b.markets),
+        SetInvestorFlow(),
+    )
 
 
 def run(
@@ -85,10 +90,11 @@ def run(
     fin_src: FinancialSource,
     cfg: Config,
     log: Log = lambda _: None,
+    flow_src: InvestorFlowSource | None = None,
 ) -> int:
     """Raises db.RunInProgress when another batch is running."""
     run_id = db.start_run(conn, cfg.batch.stale_run_minutes)
-    execute(conn, run_id, prices_src, fin_src, cfg, log)
+    execute(conn, run_id, prices_src, fin_src, cfg, log, flow_src)
     return run_id
 
 
@@ -99,6 +105,7 @@ def execute(
     fin_src: FinancialSource,
     cfg: Config,
     log: Log = lambda _: None,
+    flow_src: InvestorFlowSource | None = None,
 ) -> None:
     try:
         db.save_run(conn, run_id, collect(prices_src, fin_src, cfg, log))
@@ -109,6 +116,25 @@ def execute(
     except BaseException as e:
         db.fail_run(conn, run_id, f"{type(e).__name__}: {e}")
         raise
+    if flow_src:
+        record_investor_flow(conn, flow_src, log)
+
+
+def record_investor_flow(conn: sqlite3.Connection, src: InvestorFlowSource, log: Log) -> str | None:
+    """Never raises: a batch run must not fail on this (design D3). Returns why nothing was saved, else None."""
+    started = time.monotonic()
+    try:
+        flow = src.fetch_investor_flow()
+    except ValueError as e:
+        error = f"ข้อมูลประเภทนักลงทุนไม่ผ่านการตรวจ ไม่เก็บ: {e}"
+    except Exception as e:
+        error = f"ดึงข้อมูลประเภทนักลงทุนไม่ได้: {type(e).__name__}: {e}"
+    else:
+        db.save_investor_flow(conn, flow)
+        log(f"เก็บข้อมูลประเภทนักลงทุนของวันที่ {flow.date} ({time.monotonic() - started:.0f} วินาที)")
+        return None
+    log(error)
+    return error
 
 
 def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log) -> db.RunResults:

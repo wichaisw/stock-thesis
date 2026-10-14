@@ -20,8 +20,9 @@ def main() -> None:
     cfg = load_config(args.config, db.settings(conn))
     started = time.monotonic()
     try:
+        prices, financials, flow = batch.default_sources(cfg)
         run_id = batch.run(
-            conn, *batch.default_sources(cfg), cfg, log=lambda m: print(f"{datetime.now():%H:%M:%S} {m}", flush=True)
+            conn, prices, financials, cfg, log=lambda m: print(f"{datetime.now():%H:%M:%S} {m}", flush=True), flow_src=flow
         )
     except db.RunInProgress as e:
         sys.exit(str(e))

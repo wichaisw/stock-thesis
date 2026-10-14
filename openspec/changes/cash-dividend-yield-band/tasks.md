@@ -13,8 +13,8 @@
 
 ## 3. ตรวจกับข้อมูลจริง
 
-- [ ] 3.1 รัน batch ใหม่แล้วเทียบ candidate list กับ run 11 (ก่อนเปลี่ยน) บันทึกหุ้นที่เข้าหรือออกจาก list และ fair value ของ dividend yield band ของ PTT, DITTO, DOHOME, KLINIQ ก่อนและหลังใน `engine/README.md` ตรวจว่า DITTO ไม่สูงเกินจริงอีก (fair value ของเกณฑ์นี้ไม่เกิน 2 เท่าของราคา) และ DOHOME เป็น N/A พร้อมเหตุผล
-- [ ] 3.2 รัน skill `stock-sanity-check` กับ run ใหม่ ตรวจว่าไม่มี dividend yield band ที่ fair value สูงกว่าราคาเกิน 3 เท่า ถ้ามีให้ตรวจที่มาของหุ้นนั้นกับ SET แล้วบันทึกผลใน `engine/README.md` และตรวจว่าเกณฑ์ 0.5% ไม่ตัดหุ้นที่จ่ายปันผลเงินสดจริงทิ้ง
+- [x] 3.1 รัน batch ใหม่แล้วเทียบ candidate list กับ run 11 (ก่อนเปลี่ยน) บันทึกหุ้นที่เข้าหรือออกจาก list และ fair value ของ dividend yield band ของ PTT, DITTO, DOHOME, KLINIQ ก่อนและหลังใน `engine/README.md` ตรวจว่า DITTO ไม่สูงเกินจริงอีก (fair value ของเกณฑ์นี้ไม่เกิน 2 เท่าของราคา) และ DOHOME เป็น N/A พร้อมเหตุผล
+- [x] 3.2 รัน skill `stock-sanity-check` กับ run ใหม่ ตรวจว่าไม่มี dividend yield band ที่ fair value สูงกว่าราคาเกิน 3 เท่า ถ้ามีให้ตรวจที่มาของหุ้นนั้นกับ SET แล้วบันทึกผลใน `engine/README.md` และตรวจว่าเกณฑ์ 0.5% ไม่ตัดหุ้นที่จ่ายปันผลเงินสดจริงทิ้ง
 
 ## Workflow follow-up
 

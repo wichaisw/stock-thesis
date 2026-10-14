@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from shortlist.sources import QUARTERLY_COLUMNS, StockInfo
+from shortlist.sources import MARKET_CAP_COLUMNS, QUARTERLY_COLUMNS, StockInfo
 
 
 def price_history(days: int = 120, start: float = 10.0, end: float = 12.0) -> pd.DataFrame:
@@ -18,12 +18,21 @@ def healthy_quarters(n: int = 16) -> pd.DataFrame:
     return pd.DataFrame({c: [values[c]] * n for c in QUARTERLY_COLUMNS}, index=[f"q{i}" for i in range(n)])
 
 
+def market_caps(quarterly: pd.DataFrame, shares: float = 1e9) -> pd.DataFrame:
+    """Market caps consistent with the quarterly close, as if the share count never changed."""
+    return pd.DataFrame({"mkt_cap": quarterly["close"] * shares, "shares": shares}, index=quarterly.index)[MARKET_CAP_COLUMNS]
+
+
 class FakePrices:
-    def __init__(self, prices: dict[str, pd.DataFrame]):
+    def __init__(self, prices: dict[str, pd.DataFrame], caps: dict[str, pd.DataFrame] | None = None):
         self.prices = prices
+        self.caps = caps or {}
 
     def fetch_prices(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
         return {s: self.prices[s] for s in symbols if s in self.prices}
+
+    def fetch_market_caps(self, symbol: str) -> pd.DataFrame:
+        return self.caps.get(symbol, pd.DataFrame(columns=MARKET_CAP_COLUMNS))
 
 
 class FakeFinancials:

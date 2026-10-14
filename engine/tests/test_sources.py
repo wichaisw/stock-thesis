@@ -1,9 +1,10 @@
+import pytest
 import numpy as np
 import pandas as pd
 
 from shortlist.sources import FinancialSource, PriceSource
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
-from shortlist.sources.yahoo import YahooPrices, clean_prices
+from shortlist.sources.yahoo import YahooPrices, clean_prices, quarterly_market_cap
 
 
 def test_adapters_satisfy_protocols() -> None:
@@ -61,3 +62,34 @@ def test_quarterly_uses_latest_quarter_with_eps():
 def test_mai_stock_uses_industry_as_sector():
     row = pd.Series({"symbol": "88TH", "name": "x", "industry": "Consumer Products", "sector": "-", "market": "mai"})
     assert to_stock_info(row).sector == "Consumer Products"
+
+
+def test_market_cap_undoes_split_after_quarter():
+    # SCAP: 26.75 traded at end-2022, a 5:1 split in 2023 makes yfinance show 5.35
+    close = pd.Series([5.35, 3.52], index=pd.to_datetime(["2022-12-30", "2023-06-30"]))
+    splits = pd.Series([5.0], index=pd.to_datetime(["2023-05-26"]))
+    shares = pd.Series([1.301e9, 6.506e9], index=pd.to_datetime(["2022-10-01", "2023-06-01"]))
+    caps = quarterly_market_cap(close, splits, shares)
+    assert caps.loc["2022Q4", "mkt_cap"] == pytest.approx(26.75 * 1.301e9)
+    assert caps.loc["2023Q2", "mkt_cap"] == pytest.approx(3.52 * 6.506e9)
+
+
+def test_market_cap_ignores_one_day_share_spike():
+    close = pd.Series([34.0], index=pd.to_datetime(["2022-06-30"]))
+    shares = pd.Series([28.563e9, 29.403e9, 28.563e9], index=pd.to_datetime(["2022-04-01", "2022-05-01", "2022-06-01"]))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), shares)
+    assert caps.loc["2022Q2", "shares"] == 28.563e9
+
+
+def test_no_market_cap_before_first_share_count():
+    close = pd.Series([11.3, 5.05, 0.23], index=pd.to_datetime(["2022-12-30", "2023-12-28", "2025-09-30"]))
+    shares = pd.Series([2.432e9], index=pd.to_datetime(["2025-05-23"]))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), shares)
+    assert caps["mkt_cap"].isna().tolist() == [True, True, False]
+
+
+def test_no_share_count_at_all_gives_no_market_cap():
+    # infrastructure funds (3BBIF, DIF) have prices but no share count on yfinance
+    close = pd.Series([10.0], index=pd.to_datetime(["2025-09-30"]))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series(dtype=float, index=pd.DatetimeIndex([])))
+    assert caps["mkt_cap"].isna().all()

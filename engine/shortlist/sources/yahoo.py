@@ -4,7 +4,7 @@ from itertools import batched
 import pandas as pd
 import yfinance as yf
 
-from shortlist.sources import PRICE_COLUMNS
+from shortlist.sources import MARKET_CAP_COLUMNS, PRICE_COLUMNS
 
 
 def clean_prices(raw: pd.DataFrame) -> pd.DataFrame:
@@ -18,8 +18,12 @@ def clean_prices(raw: pd.DataFrame) -> pd.DataFrame:
 
 
 class YahooPrices:
-    def __init__(self, period: str = "1y", chunk_size: int = 100, delay_seconds: float = 1.0):
+    def __init__(
+        self, period: str = "1y", chunk_size: int = 100, delay_seconds: float = 1.0, history_period: str = "6y"
+    ):
         self.period = period
+        # 5-year bands need 20 quarters plus 3 more for the first TTM
+        self.history_period = history_period
         self.chunk_size = chunk_size
         self.delay_seconds = delay_seconds
 
@@ -48,3 +52,42 @@ class YahooPrices:
                 if not df.empty:
                     out[symbol] = df
         return out
+
+    def fetch_market_caps(self, symbol: str) -> pd.DataFrame:
+        ticker = yf.Ticker(f"{symbol}.BK")
+        px = ticker.history(period=self.history_period, auto_adjust=False, actions=True)
+        if px.empty:
+            return pd.DataFrame(columns=MARKET_CAP_COLUMNS)
+        start = px.index[0]
+        shares = ticker.get_shares_full(start=start.strftime("%Y-%m-%d"))
+        # funds and some renamed stocks have no share count at all
+        shares = _naive(shares) if shares is not None else pd.Series(dtype=float, index=pd.DatetimeIndex([]))
+        return quarterly_market_cap(_naive(px["Close"]), _naive(px["Stock Splits"]), shares)
+
+
+def _naive(s: pd.Series) -> pd.Series:
+    s = s.copy()
+    s.index = pd.DatetimeIndex(s.index).tz_localize(None).normalize()
+    return s
+
+
+def quarterly_market_cap(close: pd.Series, splits: pd.Series, shares: pd.Series) -> pd.DataFrame:
+    """Market cap at each quarter end = traded close × that quarter's share count.
+
+    yfinance's Close is already split-adjusted (stock dividends count as splits), so undo every
+    split after each day to get the price that actually traded alongside that day's share count.
+    """
+    factor = pd.Series(1.0, index=close.index)
+    for day, ratio in splits[splits > 0].items():
+        factor[close.index < day] *= ratio
+    traded = (close * factor).dropna()
+    q_close = traded.groupby(traded.index.to_period("Q")).last()
+    shares = shares[~shares.index.duplicated(keep="last")].dropna()
+    # median absorbs the odd one-day spike yfinance reports; ffill carries the count into quarters
+    # with no new data point, but nothing is back-filled before the first known count
+    q_shares = shares.groupby(shares.index.to_period("Q")).median()
+    q_shares = q_shares.reindex(q_shares.index.union(q_close.index)).ffill().reindex(q_close.index)
+    out = pd.DataFrame({"mkt_cap": q_close * q_shares, "shares": q_shares})
+    out.index = [str(q) for q in out.index]
+    out.index.name = "quarter"
+    return out

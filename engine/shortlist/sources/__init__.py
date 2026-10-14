@@ -4,6 +4,8 @@ Prices: DataFrame indexed by date with PRICE_COLUMNS, only rows that have a clos
 Quarterly: DataFrame indexed by quarter label ("2026Q2"), oldest first, with
 QUARTERLY_COLUMNS. Ratios are fractions (0.10 = 10%). The last row is the latest
 quarter that has EPS.
+Market caps: DataFrame indexed by quarter label with MARKET_CAP_COLUMNS, NaN where the
+quarter has no price or share count. Built from traded prices, not dividend- or split-adjusted.
 """
 
 from dataclasses import dataclass
@@ -24,6 +26,7 @@ QUARTERLY_COLUMNS = [
     "dividend_yield",
     "close",
 ]
+MARKET_CAP_COLUMNS = ["mkt_cap", "shares"]
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,8 @@ class PriceSource(Protocol):
     def fetch_prices(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
         """Symbols with no data are omitted from the result."""
         ...
+
+    def fetch_market_caps(self, symbol: str) -> pd.DataFrame: ...
 
 
 @runtime_checkable

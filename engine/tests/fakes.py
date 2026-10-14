@@ -19,8 +19,16 @@ def healthy_quarters(n: int = 16) -> pd.DataFrame:
 
 
 def market_caps(quarterly: pd.DataFrame, shares: float = 1e9) -> pd.DataFrame:
-    """Market caps consistent with the quarterly close, as if the share count never changed."""
-    return pd.DataFrame({"mkt_cap": quarterly["close"] * shares, "shares": shares}, index=quarterly.index)[MARKET_CAP_COLUMNS]
+    """Market caps and trailing dividends consistent with the quarterly close and yield, as if the share count never changed."""
+    return pd.DataFrame(
+        {
+            "mkt_cap": quarterly["close"] * shares,
+            "shares": shares,
+            "dps_ttm": quarterly["dividend_yield"] * quarterly["close"],
+            "dividend_yield_ttm": quarterly["dividend_yield"],
+        },
+        index=quarterly.index,
+    )[MARKET_CAP_COLUMNS]
 
 
 class FakePrices:

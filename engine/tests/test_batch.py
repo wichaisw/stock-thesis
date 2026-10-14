@@ -5,7 +5,7 @@ import pytest
 from shortlist import batch, db
 from shortlist.config import load_config
 from shortlist.sources import StockInfo
-from tests.fakes import FakeFinancials, FakePrices, healthy_quarters, price_history
+from tests.fakes import FakeFinancials, FakePrices, healthy_quarters, market_caps, price_history
 
 CFG = load_config()
 
@@ -13,7 +13,11 @@ CFG = load_config()
 def fake_sources():
     stocks = [StockInfo(s, f"{s} Co", "Commerce", "SET") for s in ["AAA", "BBB", "CCC", "DDD"]]
     # CCC has no prices, BBB's statements fail
-    prices = FakePrices({"AAA": price_history(), "BBB": price_history(), "DDD": price_history()})
+    # AAA needs market caps and dividends from the price source for its fair value panel
+    prices = FakePrices(
+        {"AAA": price_history(), "BBB": price_history(), "DDD": price_history()},
+        {"AAA": market_caps(healthy_quarters())},
+    )
     fin = FakeFinancials(stocks, {"AAA": healthy_quarters(), "DDD": healthy_quarters()}, broken={"BBB"})
     return prices, fin
 

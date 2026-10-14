@@ -42,7 +42,7 @@ def peers_for(symbol: str, sector: str, pe_by_symbol: dict[str, tuple[str, float
 def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: FairValue, caps: pd.DataFrame) -> dict:
     """PE/PBV bands are company-level (market cap ÷ profit or equity) and converted back with today's
     share count, so splits, capital raises and the source's dividend-adjusted prices don't skew them."""
-    reported = quarterly[quarterly["eps"].notna()].join(caps["mkt_cap"])
+    reported = quarterly[quarterly["eps"].notna()].join(caps[["mkt_cap", "dividend_yield_ttm"]])
     hist = reported.tail(cfg.lookback_quarters)
     ttm = net_profit_ttm(reported)
     shares = latest_shares(caps)
@@ -79,19 +79,18 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
                 return None, "ข้อมูล PBV ย้อนหลังไม่พอ"
             return pbv.median() * with_equity["equity"].iloc[-1] / shares, None
         if method == "dividend_yield_median":
-            paid = hist["dividend_yield"][hist["dividend_yield"] > 0]
+            # cash yields from the price source, not the statement source: stock dividends and the
+            # source's odd off-quarter values would drag the median toward 0 and inflate fair value
+            floor = cfg.min_dividend_yield
+            paid = hist["dividend_yield_ttm"][hist["dividend_yield_ttm"] >= floor]
             if paid.empty:
-                return None, "ไม่มีปันผลในช่วง 5 ปี"
-            # a couple of stray tiny yields would make the median ~0 and the fair value explode
+                return None, f"ไม่มีไตรมาสที่จ่ายปันผลเงินสดถึงเกณฑ์ {floor:.1%}"
+            latest = caps[["dps_ttm", "dividend_yield_ttm"]].dropna()
+            if latest.empty or latest["dividend_yield_ttm"].iloc[-1] < floor:
+                return None, "ไม่ได้จ่ายปันผลเงินสดใน 12 เดือนล่าสุด"
             if len(paid) < cfg.min_history_points:
-                return None, f"มีปันผลแค่ {len(paid)} ไตรมาสในช่วง 5 ปี"
-            # thaifin often shows 0 in the quarters after the payout, so look back a full year
-            recent = paid[paid.index.isin(hist.index[-4:])]
-            if recent.empty:
-                return None, "ไม่ได้จ่ายปันผลใน 4 ไตรมาสล่าสุด"
-            # thaifin has no DPS; yield × that quarter's close recovers it
-            dps = recent.iloc[-1] * hist.loc[recent.index[-1], "close"]
-            return dps / paid.median(), None
+                return None, f"จ่ายปันผลเงินสดถึงเกณฑ์แค่ {len(paid)} ไตรมาสในช่วง 5 ปี"
+            return latest["dps_ttm"].iloc[-1] / paid.median(), None
         raise ValueError(method)
 
     items = []

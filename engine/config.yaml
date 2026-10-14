@@ -24,6 +24,7 @@ fair_value:
   lookback_quarters: 20 # 5 ปี
   min_history_points: 4
   min_peers: 3
+  min_dividend_yield: 0.005 # สัดส่วน
   structure_change_threshold: 0.5 # สัดส่วน
   max_pe: 100 # เท่า
 

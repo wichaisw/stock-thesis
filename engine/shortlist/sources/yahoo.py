@@ -62,7 +62,7 @@ class YahooPrices:
         shares = ticker.get_shares_full(start=start.strftime("%Y-%m-%d"))
         # funds and some renamed stocks have no share count at all
         shares = _naive(shares) if shares is not None else pd.Series(dtype=float, index=pd.DatetimeIndex([]))
-        return quarterly_market_cap(_naive(px["Close"]), _naive(px["Stock Splits"]), shares)
+        return quarterly_market_cap(_naive(px["Close"]), _naive(px["Stock Splits"]), shares, _naive(px["Dividends"]))
 
 
 def _naive(s: pd.Series) -> pd.Series:
@@ -71,7 +71,9 @@ def _naive(s: pd.Series) -> pd.Series:
     return s
 
 
-def quarterly_market_cap(close: pd.Series, splits: pd.Series, shares: pd.Series) -> pd.DataFrame:
+def quarterly_market_cap(
+    close: pd.Series, splits: pd.Series, shares: pd.Series, dividends: pd.Series | None = None
+) -> pd.DataFrame:
     """Market cap at each quarter end = traded close × that quarter's share count.
 
     yfinance's Close is already split-adjusted (stock dividends count as splits), so undo every
@@ -89,7 +91,23 @@ def quarterly_market_cap(close: pd.Series, splits: pd.Series, shares: pd.Series)
     daily = shares.reindex(shares.index.union(traded.index)).ffill().reindex(traded.index)
     q_shares = daily.groupby(daily.index.to_period("Q")).apply(lambda s: s.tail(20).median())
     q_shares = q_shares.reindex(q_close.index)
-    out = pd.DataFrame({"mkt_cap": q_close * q_shares, "shares": q_shares})
+    # Dividends and Close are both split-adjusted, so their ratio is the yield at the traded price and
+    # the trailing sum is already per share of today's count; stock dividends sit in splits, not here
+    divs = dividends[dividends > 0] if dividends is not None and len(dividends) else None
+    adjusted = close.dropna()
+    last_day = adjusted.groupby(adjusted.index.to_period("Q")).apply(lambda s: s.index[-1])
+    dps = pd.Series(
+        [0.0 if divs is None else divs[(divs.index > d - pd.Timedelta(days=365)) & (divs.index <= d)].sum() for d in last_day],
+        index=last_day.index,
+    )
+    out = pd.DataFrame(
+        {
+            "mkt_cap": q_close * q_shares,
+            "shares": q_shares,
+            "dps_ttm": dps,
+            "dividend_yield_ttm": dps / adjusted.groupby(adjusted.index.to_period("Q")).last(),
+        }
+    )
     out.index = [str(q) for q in out.index]
     out.index.name = "quarter"
     return out

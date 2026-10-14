@@ -75,3 +75,8 @@ def test_unknown_or_locked_override_is_skipped(caplog):
     cfg = load_config(overrides={"quality.gone": 1, "cdc.fast_length": 5})
     assert cfg.cdc.fast_length == 12
     assert "quality.gone" in caplog.text and "cdc.fast_length" in caplog.text
+
+
+def test_min_dividend_yield_default_and_type():
+    assert load_config().fair_value.min_dividend_yield == 0.005
+    assert error_locs({"fair_value.min_dividend_yield": "low"}) == {"fair_value.min_dividend_yield"}

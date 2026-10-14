@@ -88,22 +88,48 @@ def test_no_dividend_makes_yield_band_na():
     assert i["fair_value"] is None and i["reason"]
 
 
-def test_too_few_dividend_quarters_is_na():
-    # SKY: only 3 tiny-or-recent yields in 5 years made the median ~0 and fair value 1,533 baht
-    q = history(dy=None)
-    q["dividend_yield"] = q["dividend_yield"].astype(float)
-    q.iloc[[0, 1, -1], q.columns.get_loc("dividend_yield")] = [0.0001, 0.0002, 0.021]
-    r = evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
-    i = item(r, "dividend_yield_median")
+def with_yields(yields: list[float], dps_now: float, n: int = 20) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Trailing cash yields per quarter (oldest first) and today's trailing DPS."""
+    q = history(n=n)
+    caps = market_caps(q)
+    caps["dividend_yield_ttm"] = yields
+    caps.iloc[-1, caps.columns.get_loc("dps_ttm")] = dps_now
+    return q, caps
+
+
+def test_band_divides_current_cash_dps_by_median_trailing_yield():
+    q, caps = with_yields([0.05] * 20, dps_now=2.8)
+    r = evaluate(q, price=40.0, peer_pes=[], caps=caps)
+    assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(56.0)
+
+
+def test_quarters_below_the_cash_floor_are_left_out():
+    # DITTO: 7 quarters of tiny cash next to stock dividends, then 10 quarters of real cash payouts
+    real = [0.011, 0.017, 0.013, 0.015, 0.021, 0.026, 0.018, 0.046, 0.040, 0.036]
+    q, caps = with_yields([0.0, 0.0, 0.0] + [0.0002, 0.0001, 0.0001, 0.0003, 0.0004, 0.0003, 0.0004] + real, dps_now=0.5)
+    r = evaluate(q, price=12.4, peer_pes=[], caps=caps)
+    assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(0.5 / pd.Series(real).median(), rel=1e-3)
+
+
+def test_stock_dividends_every_year_make_band_na():
+    # DOHOME: cash part never reaches the floor
+    q, caps = with_yields([0.0013] * 20, dps_now=0.0044)
+    i = item(evaluate(q, price=3.5, peer_pes=[], caps=caps), "dividend_yield_median")
+    assert i["fair_value"] is None and i["reason"] == "ไม่มีไตรมาสที่จ่ายปันผลเงินสดถึงเกณฑ์ 0.5%"
+
+
+def test_stopped_paying_makes_band_na():
+    q, caps = with_yields([0.0] * 8 + [0.04] * 12, dps_now=0.0)
+    caps.iloc[-4:, caps.columns.get_loc("dividend_yield_ttm")] = 0.0
+    i = item(evaluate(q, price=12.0, peer_pes=[], caps=caps), "dividend_yield_median")
+    assert i["fair_value"] is None and i["reason"] == "ไม่ได้จ่ายปันผลเงินสดใน 12 เดือนล่าสุด"
+
+
+def test_too_few_paying_quarters_is_na():
+    # SKY: only 3 quarters with a real cash yield in 5 years
+    q, caps = with_yields([0.0] * 17 + [0.021] * 3, dps_now=0.37)
+    i = item(evaluate(q, price=17.4, peer_pes=[], caps=caps), "dividend_yield_median")
     assert i["fair_value"] is None and "3 ไตรมาส" in i["reason"]
-
-
-def test_dividend_paid_earlier_in_the_year_still_counts():
-    # GLOBAL: yield shows 0 in the two quarters after the payout
-    q = history(dy=0.04)
-    q.iloc[-2:, q.columns.get_loc("dividend_yield")] = 0.0
-    r = evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
-    assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(15.0)
 
 
 def test_merger_flags_structure_change():

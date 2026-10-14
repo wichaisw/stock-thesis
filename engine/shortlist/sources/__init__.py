@@ -6,6 +6,8 @@ QUARTERLY_COLUMNS. Ratios are fractions (0.10 = 10%). The last row is the latest
 quarter that has EPS.
 Market caps: DataFrame indexed by quarter label with MARKET_CAP_COLUMNS, NaN where the
 quarter has no price or share count. Built from traded prices, not dividend- or split-adjusted.
+dps_ttm is the cash dividend per share (today's share count) gone ex in the 12 months to the
+quarter's last trading day, and dividend_yield_ttm is that over the close; stock dividends are not cash.
 """
 
 from dataclasses import dataclass
@@ -26,7 +28,7 @@ QUARTERLY_COLUMNS = [
     "dividend_yield",
     "close",
 ]
-MARKET_CAP_COLUMNS = ["mkt_cap", "shares"]
+MARKET_CAP_COLUMNS = ["mkt_cap", "shares", "dps_ttm", "dividend_yield_ttm"]
 
 
 @dataclass(frozen=True)

@@ -2,14 +2,14 @@
 
 ## 1. Dividend yield 12 เดือนใน adapter yfinance
 
-- [ ] 1.1 เพิ่มคอลัมน์ `dividend_yield_ttm` และ `dps_ttm` ในผลของ `fetch_market_caps` จาก `Dividends` ÷ `Close` ที่ปรับ split แล้วทั้งคู่ (design D1) โดยใช้ request ประวัติราคาเดิม ตรวจด้วย `uv run pytest` ที่มี test ของ scenario ใน spec `market-data`: จ่ายปีละสองครั้ง, ไตรมาสที่ไม่มี XD, ปันผลเป็นหุ้น, แตกพาร์หลัง XD และไม่มีปันผลเงินสด
-- [ ] 1.2 เทียบ dividend yield 12 เดือนที่คำนวณได้กับ `trading-stat` ของ SET ณ สิ้นปี 2022–2025 ของ PTT, AOT, DITTO, DOHOME, KLINIQ และหุ้นที่แตกพาร์ในกรอบ 5 ปีอย่างน้อย 1 ตัว (เช่น SCAP) ผ่านเมื่อต่างไม่เกิน 0.2 จุด % แล้วบันทึกตารางผลและจุดที่ไม่ตรงใน `engine/README.md`
+- [x] 1.1 เพิ่มคอลัมน์ `dividend_yield_ttm` และ `dps_ttm` ในผลของ `fetch_market_caps` จาก `Dividends` ÷ `Close` ที่ปรับ split แล้วทั้งคู่ (design D1) โดยใช้ request ประวัติราคาเดิม ตรวจด้วย `uv run pytest` ที่มี test ของ scenario ใน spec `market-data`: จ่ายปีละสองครั้ง, ไตรมาสที่ไม่มี XD, ปันผลเป็นหุ้น, แตกพาร์หลัง XD และไม่มีปันผลเงินสด
+- [x] 1.2 เทียบปันผลเงินสดของ yfinance (วัน XD และจำนวนต่อหุ้นที่ราคาจริง) กับรายการ XD ใน `corporate-action/historical` ของ SET ตั้งแต่ ต.ค. 2021 ของ PTT, AOT, DITTO, DOHOME, KLINIQ และหุ้นที่แตกพาร์ในกรอบ 5 ปีอย่างน้อย 1 ตัว (เช่น SCAP) ผ่านเมื่อทุก XD ตรงกัน แล้วเทียบ dividend yield 12 เดือนกับ `trading-stat` ของ SET ณ สิ้นปี 2022–2025 และบันทึกตารางผลกับเหตุที่ต่างใน `engine/README.md` (SET คิด yield จากปันผลของรอบบัญชีล่าสุดที่จ่ายครบ จึงต่างจาก yield ตามวัน XD ได้)
 
 ## 2. Dividend yield band
 
-- [ ] 2.1 เพิ่ม config `fair_value.min_dividend_yield` (default 0.005) ใน `engine/config.yaml` และ `config.py` (design D2) ตรวจด้วย test ว่าโหลด default ได้และค่าผิดประเภท error พร้อมชื่อ field
-- [ ] 2.2 เปลี่ยน dividend yield band ใน `core/fair_value` ให้ใช้ `dividend_yield_ttm` และ `dps_ttm` แทน `dividend_yield` และ `close` ของ thaifin (design D3) ตรวจด้วย `uv run pytest` ที่มี test ของ scenario ใน spec `fair-value-panel`: จ่ายสม่ำเสมอ, ช่วงที่จ่ายปันผลเป็นหุ้น, จ่ายปันผลเป็นหุ้นทุกปี และหยุดจ่ายปันผล และแก้ test เดิมของ yield band ให้ใช้ข้อมูลชุดใหม่
-- [ ] 2.3 แก้ tooltip ของ dividend yield band ใน `web/app/stocks/[symbol]/page.tsx` ให้บอกว่าใช้ปันผลเงินสด 12 เดือนและไม่นับปันผลเป็นหุ้น ตรวจด้วย `bun run lint` และชี้ที่เกณฑ์นี้ในหน้ารายละเอียดหุ้น
+- [x] 2.1 เพิ่ม config `fair_value.min_dividend_yield` (default 0.005) ใน `engine/config.yaml` และ `config.py` (design D2) ตรวจด้วย test ว่าโหลด default ได้และค่าผิดประเภท error พร้อมชื่อ field
+- [x] 2.2 เปลี่ยน dividend yield band ใน `core/fair_value` ให้ใช้ `dividend_yield_ttm` และ `dps_ttm` แทน `dividend_yield` และ `close` ของ thaifin (design D3) ตรวจด้วย `uv run pytest` ที่มี test ของ scenario ใน spec `fair-value-panel`: จ่ายสม่ำเสมอ, ช่วงที่จ่ายปันผลเป็นหุ้น, จ่ายปันผลเป็นหุ้นทุกปี และหยุดจ่ายปันผล และแก้ test เดิมของ yield band ให้ใช้ข้อมูลชุดใหม่
+- [x] 2.3 แก้ tooltip ของ dividend yield band ใน `web/app/stocks/[symbol]/page.tsx` ให้บอกว่าใช้ปันผลเงินสด 12 เดือนและไม่นับปันผลเป็นหุ้น ตรวจด้วย `bun run lint` และชี้ที่เกณฑ์นี้ในหน้ารายละเอียดหุ้น
 
 ## 3. ตรวจกับข้อมูลจริง
 

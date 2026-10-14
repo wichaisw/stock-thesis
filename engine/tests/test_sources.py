@@ -104,3 +104,47 @@ def test_no_share_count_at_all_gives_no_market_cap():
     close = pd.Series([10.0], index=pd.to_datetime(["2025-09-30"]))
     caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series(dtype=float, index=pd.DatetimeIndex([])))
     assert caps["mkt_cap"].isna().all()
+
+
+def quarter_ends(*days: str) -> pd.DatetimeIndex:
+    return pd.to_datetime(list(days))
+
+
+def test_trailing_yield_sums_cash_dividends_of_the_last_12_months():
+    # paid twice a year: 0.80 in March and 1.30 in September, close 35.00 at year end
+    close = pd.Series([35.0], index=quarter_ends("2025-12-30"))
+    divs = pd.Series([0.8, 1.3], index=quarter_ends("2025-03-06", "2025-09-28"))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series([1e9], index=quarter_ends("2025-01-01")), divs)
+    assert caps.loc["2025Q4", "dps_ttm"] == pytest.approx(2.1)
+    assert caps.loc["2025Q4", "dividend_yield_ttm"] == pytest.approx(0.06)
+
+
+def test_quarter_without_xd_still_counts_the_previous_12_months():
+    close = pd.Series([20.0, 20.0], index=quarter_ends("2025-03-31", "2025-06-30"))
+    divs = pd.Series([1.0], index=quarter_ends("2025-03-06"))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series(dtype=float), divs)
+    assert caps.loc["2025Q2", "dividend_yield_ttm"] == pytest.approx(0.05)
+
+
+def test_stock_dividend_counts_only_its_cash_part():
+    # DITTO 2022: a 1.2 "split" (stock dividend) with 0.0093 cash; yfinance keeps them in separate columns
+    close = pd.Series([50.0], index=quarter_ends("2022-06-30"))
+    splits = pd.Series([1.2], index=quarter_ends("2022-03-15"))
+    divs = pd.Series([0.0093], index=quarter_ends("2022-03-15"))
+    caps = quarterly_market_cap(close, splits, pd.Series(dtype=float), divs)
+    assert caps.loc["2022Q2", "dps_ttm"] == pytest.approx(0.0093)
+
+
+def test_yield_is_unchanged_by_a_later_split():
+    # 1.00 paid at a 20.00 close, then a 2:1 split: yfinance shows 0.50 and 10.00 for that day
+    close = pd.Series([10.0, 5.0], index=quarter_ends("2024-06-28", "2025-06-30"))
+    splits = pd.Series([2.0], index=quarter_ends("2025-01-15"))
+    divs = pd.Series([0.5], index=quarter_ends("2024-06-10"))
+    caps = quarterly_market_cap(close, splits, pd.Series(dtype=float), divs)
+    assert caps.loc["2024Q2", "dividend_yield_ttm"] == pytest.approx(0.05)
+
+
+def test_no_cash_dividend_gives_zero_yield():
+    close = pd.Series([10.0, 11.0], index=quarter_ends("2025-03-31", "2025-06-30"))
+    caps = quarterly_market_cap(close, pd.Series(dtype=float), pd.Series(dtype=float), pd.Series(dtype=float))
+    assert (caps["dividend_yield_ttm"] == 0).all() and (caps["dps_ttm"] == 0).all()

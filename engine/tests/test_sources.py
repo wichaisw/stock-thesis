@@ -74,6 +74,17 @@ def test_market_cap_undoes_split_after_quarter():
     assert caps.loc["2023Q2", "mkt_cap"] == pytest.approx(3.52 * 6.506e9)
 
 
+def test_market_cap_uses_share_count_at_quarter_end_when_split_mid_quarter():
+    # SCAP 2023Q2: ten 1.30B points before the 26 May 5:1 split outvote the one 6.51B point after it
+    days = pd.bdate_range("2023-04-03", "2023-06-30")
+    close = pd.Series(3.52, index=days)
+    splits = pd.Series([5.0], index=pd.to_datetime(["2023-05-26"]))
+    before = pd.Series(1.301e9, index=pd.date_range("2023-04-03", "2023-05-25", periods=10))
+    shares = pd.concat([before, pd.Series([6.506e9], index=pd.to_datetime(["2023-05-27"]))])
+    caps = quarterly_market_cap(close, splits, shares)
+    assert caps.loc["2023Q2", "shares"] == 6.506e9
+
+
 def test_market_cap_ignores_one_day_share_spike():
     close = pd.Series([34.0], index=pd.to_datetime(["2022-06-30"]))
     shares = pd.Series([28.563e9, 29.403e9, 28.563e9], index=pd.to_datetime(["2022-04-01", "2022-05-01", "2022-06-01"]))

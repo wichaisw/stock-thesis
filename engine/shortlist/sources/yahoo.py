@@ -83,10 +83,12 @@ def quarterly_market_cap(close: pd.Series, splits: pd.Series, shares: pd.Series)
     traded = (close * factor).dropna()
     q_close = traded.groupby(traded.index.to_period("Q")).last()
     shares = shares[~shares.index.duplicated(keep="last")].dropna()
-    # median absorbs the odd one-day spike yfinance reports; ffill carries the count into quarters
-    # with no new data point, but nothing is back-filled before the first known count
-    q_shares = shares.groupby(shares.index.to_period("Q")).median()
-    q_shares = q_shares.reindex(q_shares.index.union(q_close.index)).ffill().reindex(q_close.index)
+    # carry each count onto the trading days it was in force (never back-filled before the first one),
+    # then take the median of the quarter's last 20 days: it matches the share count to the quarter-end
+    # close after a mid-quarter split, and still absorbs yfinance's one-day spikes
+    daily = shares.reindex(shares.index.union(traded.index)).ffill().reindex(traded.index)
+    q_shares = daily.groupby(daily.index.to_period("Q")).apply(lambda s: s.tail(20).median())
+    q_shares = q_shares.reindex(q_close.index)
     out = pd.DataFrame({"mkt_cap": q_close * q_shares, "shares": q_shares})
     out.index = [str(q) for q in out.index]
     out.index.name = "quarter"

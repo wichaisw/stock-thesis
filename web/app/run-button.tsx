@@ -8,7 +8,8 @@ import { thaiDateTime } from "@/lib/format";
 
 const POLL_MS = 3000;
 
-export function RunButton({ initial }: { initial: Run | null }) {
+// children (the settings shortcut) sit beside the button, so the status line below can wrap without pushing them apart
+export function RunButton({ initial, children }: { initial: Run | null; children?: React.ReactNode }) {
   const [run, setRun] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -36,15 +37,18 @@ export function RunButton({ initial }: { initial: Run | null }) {
 
   return (
     <div className="flex flex-col items-end gap-1 text-sm">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={running || pending}
-        className="rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
-      >
-        {running ? "กำลังรัน batch…" : "รัน batch"}
-      </button>
-      <p aria-live="polite" className="text-zinc-500">
+      <div className="flex items-start gap-2">
+        {children}
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={running || pending}
+          className="rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
+        >
+          {running ? "กำลังรัน batch…" : "รัน batch"}
+        </button>
+      </div>
+      <p aria-live="polite" className="max-w-md text-right text-zinc-500">
         {running && `เริ่มเมื่อ ${thaiDateTime(run.started_at)} (ราว 1–3 นาที)`}
         {run?.status === "failed" && <span className="text-red-600">รันล่าสุดล้มเหลว: {run.error}</span>}
         {error && <span className="text-red-600">{error}</span>}

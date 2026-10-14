@@ -35,8 +35,8 @@
 
 ## 6. Engine API
 
-- [ ] 6.1 ทำ endpoint: candidate list ของ run สำเร็จล่าสุด, รายละเอียดหุ้นรายตัว, ค้นหา symbol (ระบุว่าหุ้นตัวไหน fail พร้อมเหตุผล), รายชื่อหุ้นที่ fail ของ run ล่าสุด, สั่งรัน batch และดูสถานะ run ตรวจด้วย test ผ่าน FastAPI TestClient รวมถึงกรณีที่ยังไม่เคยมี run สำเร็จ
-- [ ] 6.2 ทำ endpoint เพิ่มและลบ event manual ตรวจด้วย test ว่า event ยังอยู่หลังมี run ใหม่ และ event ที่เลยวันแล้วไม่ถูกส่งกลับมา
+- [x] 6.1 ทำ endpoint: candidate list ของ run สำเร็จล่าสุด, รายละเอียดหุ้นรายตัว, ค้นหา symbol (ระบุว่าหุ้นตัวไหน fail พร้อมเหตุผล), รายชื่อหุ้นที่ fail ของ run ล่าสุด, สั่งรัน batch และดูสถานะ run ตรวจด้วย test ผ่าน FastAPI TestClient รวมถึงกรณีที่ยังไม่เคยมี run สำเร็จ
+- [x] 6.2 ทำ endpoint เพิ่มและลบ event manual ตรวจด้วย test ว่า event ยังอยู่หลังมี run ใหม่ และ event ที่เลยวันแล้วไม่ถูกส่งกลับมา
 
 ## 7. Web
 

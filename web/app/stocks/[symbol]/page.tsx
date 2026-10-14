@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { deleteEvent } from "@/app/actions";
-import { FailIcon, Info, StateBadge, Tag } from "@/app/badges";
+import { FailIcon, StateBadge, Tag, Tooltip } from "@/app/badges";
 import { CopyButton } from "@/app/stocks/[symbol]/copy-button";
 import { EventForm } from "@/app/stocks/[symbol]/event-form";
 import { engine, EngineError, type Check, type Evaluation, type StockDetail } from "@/lib/engine";
@@ -221,22 +221,22 @@ function FairValuePanel({ ev }: { ev: Evaluation }) {
       )}
       <table className="w-full text-sm">
         <thead className="text-left text-zinc-500">
-          <tr>
+          <tr className="relative">
             <th className="py-1 font-medium">เกณฑ์</th>
             <th className="py-1 text-right font-medium">Fair value</th>
             <th className="py-1 text-right font-medium">
               MoS
-              <Info text={MOS_HELP} />
+              <Tooltip id="tip-mos" text={MOS_HELP} label="MoS" />
             </th>
             <th className="py-1 pl-4 font-medium">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
           {items.map((i) => (
-            <tr key={i.method} className="border-t border-zinc-100 dark:border-zinc-800">
+            <tr key={i.method} className="relative border-t border-zinc-100 dark:border-zinc-800">
               <td className="py-1">
                 {i.label}
-                {FAIR_VALUE_HELP[i.method] && <Info text={FAIR_VALUE_HELP[i.method]} />}
+                {FAIR_VALUE_HELP[i.method] && <Tooltip id={`tip-${i.method}`} text={FAIR_VALUE_HELP[i.method]} label={i.label} />}
               </td>
               <td className="py-1 text-right">{baht(i.fair_value)}</td>
               <td className={`py-1 text-right ${i.mos != null && i.mos > 0 ? "text-emerald-600" : ""}`}>{pct(i.mos)}</td>

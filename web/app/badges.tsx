@@ -25,14 +25,6 @@ export function Tag({ children, tone = "zinc", title }: { children: React.ReactN
   );
 }
 
-export function Info({ text }: { text: string }) {
-  return (
-    <span role="img" title={text} aria-label={text} className="ml-1 cursor-help text-zinc-400">
-      ⓘ
-    </span>
-  );
-}
-
 /**
  * Shows on hover and on keyboard focus, unlike `title`. The text spans the nearest `relative`
  * ancestor rather than hanging off the icon, so it cannot run off a narrow screen.

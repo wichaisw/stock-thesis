@@ -1,3 +1,5 @@
+import threading
+
 import pandas as pd
 
 from shortlist import db
@@ -39,3 +41,20 @@ def test_run_and_evaluation_round_trip(tmp_path):
     assert conn.execute("SELECT close FROM prices_daily").fetchone()[0] == 1.1
     assert conn.execute("SELECT eps FROM financials_quarterly").fetchone()[0] == 0.5
     assert [s["symbol"] for s in db.search_stocks(conn, "b")] == ["BBB"]
+
+
+def test_connection_works_from_another_thread(tmp_path):
+    # FastAPI opens a request's connection in one thread and may run the endpoint in another
+    conn = db.connect(tmp_path / "t.db")
+    errors = []
+
+    def use():
+        try:
+            db.latest_run(conn)
+        except Exception as e:
+            errors.append(e)
+
+    t = threading.Thread(target=use)
+    t.start()
+    t.join()
+    assert errors == []

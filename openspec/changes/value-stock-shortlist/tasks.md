@@ -40,7 +40,7 @@
 
 - [x] 6.1 ทำ endpoint: candidate list ของ run สำเร็จล่าสุด, รายละเอียดหุ้นรายตัว, ค้นหา symbol (ระบุว่าหุ้นตัวไหน fail พร้อมเหตุผล), รายชื่อหุ้นที่ fail ของ run ล่าสุด, สั่งรัน batch และดูสถานะ run ตรวจด้วย test ผ่าน FastAPI TestClient รวมถึงกรณีที่ยังไม่เคยมี run สำเร็จ
 - [x] 6.2 ทำ endpoint เพิ่มและลบ event manual ตรวจด้วย test ว่า event ยังอยู่หลังมี run ใหม่ และ event ที่เลยวันแล้วไม่ถูกส่งกลับมา
-- [ ] 6.3 เพิ่ม regression test ที่เปิด connection ของ DB ใน thread หนึ่งแล้วใช้ใน thread อื่นได้โดยไม่ error (design D3)
+- [x] 6.3 เพิ่ม regression test ที่เปิด connection ของ DB ใน thread หนึ่งแล้วใช้ใน thread อื่นได้โดยไม่ error (design D3)
 
 ## 7. Web
 

@@ -2,16 +2,16 @@
 
 ## 1. Engine setup
 
-- [ ] 1.1 ติดตั้ง `uv` แล้วสร้าง `engine/` ด้วย `pyproject.toml` ที่ใช้ Python 3.13 มี dependency yfinance, thaifin, pandas, fastapi, uvicorn, pyyaml, pydantic และ dev dependency pytest ตรวจว่า `uv run python -c "import yfinance, thaifin"` ผ่าน และ `uv run pytest` รันได้
-- [ ] 1.2 สร้าง `engine/config.yaml` ที่มีค่า default ทั้งหมดตาม proposal และ specs พร้อม loader ที่ใช้ pydantic (design D6) ตรวจด้วย test ว่าโหลด default ได้ และ config ที่ค่าผิดประเภทจะ error พร้อมบอกชื่อ field
+- [x] 1.1 ติดตั้ง `uv` แล้วสร้าง `engine/` ด้วย `pyproject.toml` ที่ใช้ Python 3.13 มี dependency yfinance, thaifin, pandas, fastapi, uvicorn, pyyaml, pydantic และ dev dependency pytest ตรวจว่า `uv run python -c "import yfinance, thaifin"` ผ่าน และ `uv run pytest` รันได้
+- [x] 1.2 สร้าง `engine/config.yaml` ที่มีค่า default ทั้งหมดตาม proposal และ specs พร้อม loader ที่ใช้ pydantic (design D6) ตรวจด้วย test ว่าโหลด default ได้ และ config ที่ค่าผิดประเภทจะ error พร้อมบอกชื่อ field
 
 ## 2. Data sources และฐานข้อมูล
 
-- [ ] 2.1 กำหนดรูปแบบข้อมูลกลางและ `Protocol` ของแหล่งราคาและแหล่งงบ (design D2) ตรวจด้วย type check ว่า adapter ทั้งสองตัวตรงตาม Protocol
-- [ ] 2.2 ทำ adapter yfinance ที่ดึงเป็น chunk และตัดแถวที่ไม่มีราคาปิดทิ้ง ตรวจด้วย test จาก fixture DataFrame ที่แถวสุดท้ายมี Close เป็น NaN
-- [ ] 2.3 ทำ adapter thaifin (รายชื่อหุ้น, sector, งบรายไตรมาส) ที่ map ชื่อ field เป็นของเรา และหาไตรมาสล่าสุดจากแถวที่มี EPS ตรวจด้วย test จาก fixture ที่มีแถวไตรมาสล่วงหน้า
-- [ ] 2.4 เทียบ ROE และ PE ของ thaifin กับงบจริงของ PTT, CPALL และ KBANK เพื่อดูว่า ROE เป็นค่า annualize หรือไม่ แล้วบันทึกผลเป็นข้อความสั้นๆ ใน `engine/README.md`
-- [ ] 2.5 สร้าง schema SQLite (design D3) และฟังก์ชันอ่านเขียน ตรวจด้วย test ที่ใช้ DB ชั่วคราว เขียน run และ evaluation แล้วอ่านกลับได้ตรง
+- [x] 2.1 กำหนดรูปแบบข้อมูลกลางและ `Protocol` ของแหล่งราคาและแหล่งงบ (design D2) ตรวจด้วย type check ว่า adapter ทั้งสองตัวตรงตาม Protocol
+- [x] 2.2 ทำ adapter yfinance ที่ดึงเป็น chunk และตัดแถวที่ไม่มีราคาปิดทิ้ง ตรวจด้วย test จาก fixture DataFrame ที่แถวสุดท้ายมี Close เป็น NaN
+- [x] 2.3 ทำ adapter thaifin (รายชื่อหุ้น, sector, งบรายไตรมาส) ที่ map ชื่อ field เป็นของเรา และหาไตรมาสล่าสุดจากแถวที่มี EPS ตรวจด้วย test จาก fixture ที่มีแถวไตรมาสล่วงหน้า
+- [x] 2.4 เทียบ ROE และ PE ของ thaifin กับงบจริงของ PTT, CPALL และ KBANK เพื่อดูว่า ROE เป็นค่า annualize หรือไม่ แล้วบันทึกผลเป็นข้อความสั้นๆ ใน `engine/README.md`
+- [x] 2.5 สร้าง schema SQLite (design D3) และฟังก์ชันอ่านเขียน ตรวจด้วย test ที่ใช้ DB ชั่วคราว เขียน run และ evaluation แล้วอ่านกลับได้ตรง
 
 ## 3. CDC และ Phase 0 spike
 

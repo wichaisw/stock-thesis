@@ -9,7 +9,7 @@ const STATE_STYLE: Record<CdcState, string> = {
 
 export function StateBadge({ state }: { state: CdcState | null }) {
   if (!state) return <span className="text-zinc-500">N/A</span>;
-  return <span className={`rounded px-2 py-0.5 text-xs font-medium ${STATE_STYLE[state]}`}>{state}</span>;
+  return <span className={`rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap ${STATE_STYLE[state]}`}>{state}</span>;
 }
 
 export function Tag({ children, tone = "zinc", title }: { children: React.ReactNode; tone?: "red" | "violet" | "zinc"; title?: string }) {
@@ -21,6 +21,14 @@ export function Tag({ children, tone = "zinc", title }: { children: React.ReactN
   return (
     <span title={title} className={`rounded px-2 py-0.5 text-xs font-medium ${style}`}>
       {children}
+    </span>
+  );
+}
+
+export function Info({ text }: { text: string }) {
+  return (
+    <span role="img" title={text} aria-label={text} className="ml-1 cursor-help text-zinc-400">
+      ⓘ
     </span>
   );
 }

@@ -2,10 +2,26 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { deleteEvent } from "@/app/actions";
-import { FailIcon, StateBadge, Tag } from "@/app/badges";
+import { FailIcon, Info, StateBadge, Tag } from "@/app/badges";
 import { EventForm } from "@/app/stocks/[symbol]/event-form";
 import { engine, EngineError, type Check, type Evaluation, type StockDetail } from "@/lib/engine";
 import { baht, pct, thaiDate } from "@/lib/format";
+
+const FAIR_VALUE_HELP: Record<string, string> = {
+  pe_median:
+    "median PE 5 ปีของหุ้นเอง × EPS TTM คือราคาถ้าตลาดให้ PE เท่าปกติของมัน ราคาต่ำกว่าแปลว่าถูกเมื่อเทียบกับอดีตของตัวเอง เหมาะกับหุ้นที่กำไรสม่ำเสมอ ไม่เหมาะกับหุ้นวัฏจักรหรือกำไรเพิ่งพลิก",
+  pe_minus_1sd:
+    "(median PE − 1SD) × EPS TTM คือราคาถ้าตลาดมองแง่ร้ายกว่าปกติ เป็นมุมมองระมัดระวัง ถ้าราคายังต่ำกว่าเส้นนี้ แปลว่ามี margin of safety แม้ตลาดไม่ชอบหุ้นตัวนี้",
+  pbv_median:
+    "median PBV 5 ปี × BVPS ล่าสุด เหมาะกับหุ้นที่สินทรัพย์สร้างกำไร เช่น ธนาคาร ไฟแนนซ์ อสังหา ไม่เหมาะกับหุ้น asset-light หรือหุ้นที่ ROE เปลี่ยนไปจากอดีตมาก",
+  dividend_yield_median:
+    "ปันผลต่อหุ้นล่าสุด ÷ median dividend yield 5 ปี ราคาต่ำกว่าแปลว่า yield ตอนนี้สูงกว่าปกติ เหมาะกับหุ้นที่จ่ายปันผลสม่ำเสมอ ระวังปันผลพิเศษครั้งเดียวที่ทำให้ดูถูกเกินจริง",
+  peer_pe:
+    "median PE ของหุ้นอื่นใน sector เดียวกัน × EPS TTM ราคาต่ำกว่าแปลว่าถูกกว่าเพื่อนใน sector แต่อาจถูกเพราะคุณภาพหรือการเติบโตต่ำกว่า หรือทั้ง sector แพง",
+};
+
+const MOS_HELP =
+  "margin of safety = (fair value − ราคา) ÷ fair value บวกแปลว่าราคาต่ำกว่า fair value ของเกณฑ์นั้น ถ้า fair value ต่ำมาก ค่าติดลบจะดูมากเกินจริง";
 
 const CHECK_LABELS: Record<string, string> = {
   min_quarters: "จำนวนไตรมาสที่มีงบ",
@@ -197,14 +213,20 @@ function FairValuePanel({ ev }: { ev: Evaluation }) {
           <tr>
             <th className="py-1 font-medium">เกณฑ์</th>
             <th className="py-1 text-right font-medium">Fair value</th>
-            <th className="py-1 text-right font-medium">MoS</th>
+            <th className="py-1 text-right font-medium">
+              MoS
+              <Info text={MOS_HELP} />
+            </th>
             <th className="py-1 pl-4 font-medium">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
           {items.map((i) => (
             <tr key={i.method} className="border-t border-zinc-100 dark:border-zinc-800">
-              <td className="py-1">{i.label}</td>
+              <td className="py-1">
+                {i.label}
+                {FAIR_VALUE_HELP[i.method] && <Info text={FAIR_VALUE_HELP[i.method]} />}
+              </td>
               <td className="py-1 text-right">{baht(i.fair_value)}</td>
               <td className={`py-1 text-right ${i.mos != null && i.mos > 0 ? "text-emerald-600" : ""}`}>{pct(i.mos)}</td>
               <td className="py-1 pl-4 text-zinc-500">{i.reason}</td>

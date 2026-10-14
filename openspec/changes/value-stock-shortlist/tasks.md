@@ -46,5 +46,5 @@
 
 ## 8. Local operation และ integration
 
-- [ ] 8.1 เขียน `README.md` ที่ root อธิบายการติดตั้ง, การรัน engine และ web, การแก้ config และตัวอย่าง cron ที่รัน batch หลังตลาดปิดในวันทำการ ตรวจว่าทำตาม README บนเครื่องใหม่แล้วรันได้
+- [x] 8.1 เขียน `README.md` ที่ root อธิบายการติดตั้ง, การรัน engine และ web, การแก้ config และตัวอย่าง cron ที่รัน batch หลังตลาดปิดในวันทำการ ตรวจว่าทำตาม README บนเครื่องใหม่แล้วรันได้
 - [ ] 8.2 ทดสอบ end-to-end: รัน batch จริงจาก UI แล้วสุ่มหุ้นใน candidate list 3 ตัวมาเทียบ CDC state กับ TradingView และ fair value กับงบจริง ตรวจว่าผลสอดคล้องกัน และบันทึกสิ่งที่ไม่ตรงเป็น issue

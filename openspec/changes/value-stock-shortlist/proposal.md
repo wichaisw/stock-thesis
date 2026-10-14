@@ -28,7 +28,7 @@
   | Stop | min(swing low 20 วัน, slow EMA − 3%) |
   | Target ใน RRR | median ของ fair value panel (แสดง max ด้วย) |
   | Peer PE | หุ้นใน sector เดียวกันตาม thaifin |
-  | Valuation band | median 5 ปีระดับบริษัท (market cap ÷ กำไรหรือส่วนผู้ถือหุ้น) PE band มีเส้น median − 1SD และตัด PE > 100 |
+  | Valuation band | median 5 ปีระดับบริษัท (market cap จากราคาจริงและจำนวนหุ้นของ yfinance ÷ กำไรหรือส่วนผู้ถือหุ้น) PE band มีเส้น median − 1SD และตัด PE > 100 |
 
 นอกขอบเขตของ change นี้:
 - **Change ถัดไป `thesis-tracking`** (Phase 2): watchlist ที่ต้องมี thesis, kill criteria (invalidation price, deadline default 90 วัน), milestone day 30/60 และ alert เมื่อ cross, โดน stop, งบออก หรือเกิน deadline ทำหลัง change นี้ใช้งานได้จริงแล้ว
@@ -55,7 +55,7 @@
   - batch ทั้งตลาดใช้ราว 3 นาที ต้องแบ่ง batch ให้พอดี time limit ของ Vercel Cron / serverless function
   - ต้องใช้ hosted DB แทนไฟล์ local
   - IP ของ Vercel อาจถูกบล็อกจาก Yahoo/Finnomena ทางเลือกคือรัน data batch นอก Vercel (เครื่อง local หรือ GitHub Action) แล้วเขียนผลลง hosted DB ให้ Vercel อ่านอย่างเดียว
-- **ข้อมูล**: ใช้ yfinance (`.BK`) สำหรับ OHLCV และ thaifin สำหรับงบการเงินรายไตรมาส ทั้งสองเป็น unofficial จึงต้องแยก data source ไว้หลัง interface เพื่อเปลี่ยนเป็น SETSMART API ได้ถ้า thaifin พัง
+- **ข้อมูล**: ใช้ yfinance (`.BK`) สำหรับ OHLCV และ market cap ย้อนหลัง (ราคาจริง × จำนวนหุ้นย้อนหลัง) และ thaifin สำหรับงบการเงินรายไตรมาส ทั้งสองเป็น unofficial จึงต้องแยก data source ไว้หลัง interface เพื่อเปลี่ยนเป็น SETSMART API ได้ถ้า thaifin พัง
 - **ข้อจำกัดของ API** (ไม่มี SLA หรือ rate limit ที่ประกาศไว้ทั้งคู่)
   - **yfinance** ([docs](https://ranaroussi.github.io/yfinance), [GitHub](https://github.com/ranaroussi/yfinance))
     - ไม่ได้เป็นของ Yahoo และ README ระบุว่า "The Yahoo! finance API is intended for personal use only" ([Yahoo terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html))

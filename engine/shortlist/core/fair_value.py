@@ -42,7 +42,7 @@ def peers_for(symbol: str, sector: str, pe_by_symbol: dict[str, tuple[str, float
 def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: FairValue, caps: pd.DataFrame) -> dict:
     """PE/PBV bands are company-level (market cap ÷ profit or equity) and converted back with today's
     share count, so splits, capital raises and the source's dividend-adjusted prices don't skew them."""
-    reported = quarterly[quarterly["eps"].notna()].join(caps[["mkt_cap", "dividend_yield_ttm"]])
+    reported = quarterly[quarterly["eps"].notna()].join(caps[["mkt_cap"]])
     hist = reported.tail(cfg.lookback_quarters)
     ttm = net_profit_ttm(reported)
     shares = latest_shares(caps)
@@ -81,8 +81,10 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
         if method == "dividend_yield_median":
             # cash yields from the price source, not the statement source: stock dividends and the
             # source's odd off-quarter values would drag the median toward 0 and inflate fair value
+            # windowed on the price source's quarters, so funds without statements in the source still get a band
             floor = cfg.min_dividend_yield
-            paid = hist["dividend_yield_ttm"][hist["dividend_yield_ttm"] >= floor]
+            yields = caps["dividend_yield_ttm"].dropna().tail(cfg.lookback_quarters)
+            paid = yields[yields >= floor]
             if paid.empty:
                 return None, f"ไม่มีไตรมาสที่จ่ายปันผลเงินสดถึงเกณฑ์ {floor:.1%}"
             latest = caps[["dps_ttm", "dividend_yield_ttm"]].dropna()

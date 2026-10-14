@@ -132,6 +132,15 @@ def test_too_few_paying_quarters_is_na():
     assert i["fair_value"] is None and "3 ไตรมาส" in i["reason"]
 
 
+def test_yield_band_does_not_depend_on_statement_coverage():
+    # 3BBIF: statements stop 5 quarters back, but yfinance has a cash yield for every quarter
+    q, caps = with_yields([0.05] * 20, dps_now=2.8)
+    q.iloc[-5:, q.columns.get_loc("eps")] = None
+    q.iloc[:12, q.columns.get_loc("eps")] = None
+    r = evaluate(q, price=40.0, peer_pes=[], caps=caps)
+    assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(56.0)
+
+
 def test_merger_flags_structure_change():
     # GULF: equity jumped 173% in one quarter after the merger
     q = history()

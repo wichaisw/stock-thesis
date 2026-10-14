@@ -7,11 +7,18 @@
 ## ADDED Requirements
 
 ### Requirement: Fair value แยกตามเกณฑ์
-ระบบ SHALL คำนวณ fair value ของแต่ละหุ้นตามเกณฑ์ที่เปิดใช้ใน config: PE band (median 5 ปี และ median − 1SD), PBV band (median 5 ปี), dividend yield band (median 5 ปี) และ peer PE (median ของ sector เดียวกัน) ระบบ SHALL คำนวณ PE และ PBV ย้อนหลังระดับบริษัท: PE = market cap ÷ กำไรสุทธิ 4 ไตรมาส และ PBV = market cap ÷ ส่วนผู้ถือหุ้น ณ สิ้นแต่ละไตรมาส เพื่อไม่ให้การแตกพาร์หรือเพิ่มทุนทำให้ค่าย้อนหลังเพี้ยน และ SHALL แปลงเป็นราคาต่อหุ้นด้วยจำนวนหุ้นปัจจุบัน (market cap ÷ ราคาปิดของไตรมาสล่าสุด) ไม่ใช้ PE, PBV, EPS หรือ BVPS ต่อหุ้นย้อนหลังจากแหล่งข้อมูล peer PE SHALL ใช้ market cap ÷ กำไรสุทธิ 4 ไตรมาสของแต่ละ peer เช่นกัน และ SHALL ตัด PE ที่สูงกว่าเกณฑ์ (default 100) ออกก่อนคำนวณ PE band ค่าเกณฑ์นี้ SHALL ปรับได้ใน config
+ระบบ SHALL คำนวณ fair value ของแต่ละหุ้นตามเกณฑ์ที่เปิดใช้ใน config: PE band (median 5 ปี และ median − 1SD), PBV band (median 5 ปี), dividend yield band (median 5 ปี) และ peer PE (median ของ sector เดียวกัน)
 
 #### Scenario: คำนวณครบทุกเกณฑ์
-- **WHEN** หุ้นมีข้อมูล PE, PBV, BVPS, dividend yield ย้อนหลัง 5 ปี และมีหุ้นอื่นใน sector เดียวกัน
+- **WHEN** หุ้นมีงบและราคาย้อนหลัง 5 ปี เคยจ่ายปันผล และมีหุ้นอื่นใน sector เดียวกัน
 - **THEN** ผลการประเมินมี fair value ของทั้ง 5 รายการ
+
+#### Scenario: ปิดบางเกณฑ์ใน config
+- **WHEN** ผู้ใช้ปิดเกณฑ์ dividend yield band ใน config
+- **THEN** panel ไม่แสดงเกณฑ์นั้น และไม่นำไปคิดในสรุป
+
+### Requirement: PE และ PBV ระดับบริษัท
+ระบบ SHALL คำนวณ PE ย้อนหลังและ peer PE จาก market cap ÷ กำไรสุทธิ 4 ไตรมาส และ PBV จาก market cap ÷ ส่วนผู้ถือหุ้น แล้วแปลงเป็นราคาต่อหุ้นด้วยจำนวนหุ้นปัจจุบัน (market cap ÷ ราคาปิดของไตรมาสล่าสุด) โดยไม่ใช้ค่าต่อหุ้นย้อนหลังจากแหล่งข้อมูล เพื่อไม่ให้การแตกพาร์หรือเพิ่มทุนทำให้ band เพี้ยน และ SHALL ตัด PE ที่สูงกว่าเกณฑ์ใน config (default 100) ออกก่อนคำนวณ PE band
 
 #### Scenario: หุ้นแตกพาร์
 - **WHEN** หุ้นแตกพาร์ระหว่างกรอบ 5 ปี และแหล่งข้อมูลปรับราคาย้อนหลังแต่ไม่ปรับ BVPS
@@ -24,10 +31,6 @@
 #### Scenario: PE ย้อนหลังมีค่าผิดปกติ
 - **WHEN** PE ย้อนหลังมีไตรมาสหนึ่งเป็น 400 เพราะกำไร 4 ไตรมาสใกล้ศูนย์
 - **THEN** PE ค่านั้นไม่ถูกนำไปคิด PE band
-
-#### Scenario: ปิดบางเกณฑ์ใน config
-- **WHEN** ผู้ใช้ปิดเกณฑ์ dividend yield band ใน config
-- **THEN** panel ไม่แสดงเกณฑ์นั้น และไม่นำไปคิดในสรุป
 
 ### Requirement: Margin of safety รายเกณฑ์
 ระบบ SHALL คำนวณ margin of safety ของแต่ละเกณฑ์เป็น (fair value − ราคาปัจจุบัน) / fair value

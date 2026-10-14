@@ -26,7 +26,7 @@ SECTION_TITLES = {
     "risk_reward": "Risk / reward",
     "candidates": "Candidates",
 }
-FairValueMethod = Literal["pe_median", "pe_minus_1sd", "pbv_median", "dividend_yield_median", "peer_pe"]
+FairValueMethod = Literal["pe_median", "pe_minus_1sd", "pbv_median", "dividend_yield_median", "peer_pe", "justified_pbv"]
 
 
 class Strict(BaseModel):
@@ -144,6 +144,26 @@ class FairValue(Strict):
         "ไม่ได้ตัดหุ้นออก ลดค่าจะติดป้ายบ่อยขึ้น เพิ่มค่าจะเตือนเฉพาะเหตุการณ์ใหญ่",
         "percent", ge=0, le=5,
     )
+    cost_of_equity: float = editable(
+        "Cost of equity (r) ของ Justified PBV",
+        "ผลตอบแทนที่ผู้ถือหุ้นต้องการ Justified PBV = (ROE − g) ÷ (r − g) ลดค่าจะทำให้ fair value สูงขึ้นมาก "
+        "(r 10% → 9% ทำให้ fair value สูงขึ้นราว 17% เมื่อ ROE 17%) เพิ่มค่าจะทำให้ fair value ต่ำลง",
+        "percent", gt=0, le=0.5,
+    )
+    terminal_growth: float = editable(
+        "Growth ระยะยาว (g) ของ Justified PBV",
+        "อัตราเติบโตระยะยาวของกำไร ต้องน้อยกว่า cost of equity หุ้นที่ ROE ไม่สูงกว่าค่านี้เป็น N/A "
+        "เพิ่มค่าจะทำให้ fair value ของหุ้น ROE สูงกว่า r สูงขึ้น และของหุ้น ROE ต่ำกว่า r ต่ำลง",
+        "percent", ge=0, le=0.2,
+    )
+
+    @field_validator("terminal_growth")
+    @classmethod
+    def _growth_below_cost_of_equity(cls, v: float, info: ValidationInfo) -> float:
+        r = info.data.get("cost_of_equity")
+        if r is not None and v >= r:
+            raise ValueError(f"g ต้องน้อยกว่า cost of equity ({r:.1%})")
+        return v
 
 
 class Cdc(Strict):

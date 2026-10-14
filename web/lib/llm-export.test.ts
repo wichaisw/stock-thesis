@@ -151,6 +151,21 @@ describe("toLlmMarkdown", () => {
     expect(notes).not.toContain("pbv_median");
   });
 
+  test("explains justified PBV with its r and g", () => {
+    const d = candidate();
+    d.evaluation!.fair_value!.items.push({
+      method: "justified_pbv",
+      label: "Justified PBV ((ROE − g) ÷ (r − g))",
+      fair_value: 20.0,
+      mos: 0.1,
+      reason: null,
+    });
+    const md = toLlmMarkdown(d);
+    const notes = md.slice(md.indexOf("## Method notes"));
+    expect(notes).toMatch(/Justified PBV: \(ROE TTM − g\) ÷ \(r − g\)/);
+    expect(notes).toMatch(/cost of equity.*long-term growth/);
+  });
+
   test("a failed stock still copies its status, hints and events", () => {
     const md = toLlmMarkdown(failed());
     expect(md).toContain("No data found");

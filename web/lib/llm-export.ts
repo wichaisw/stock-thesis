@@ -13,6 +13,8 @@ export const METHOD_NOTES_EN: Record<string, string> = {
     "Dividend yield band (median): cash dividends per share over the last 12 months ÷ median of the quarterly trailing 12-month cash yield over 5 years. Stock dividends are not counted, and quarters below the minimum yield are treated as not paying. A one-off special dividend can make it look cheap for about 12 months.",
   peer_pe:
     "Peer PE: median PE of other stocks in the same sector × EPS TTM. Cheap versus peers may reflect lower quality or growth, or the whole sector being expensive.",
+  justified_pbv:
+    "Justified PBV: (ROE TTM − g) ÷ (r − g) × latest equity per share, where r is the cost of equity and g the long-term growth (defaults 10% and 3%, set by the investor). Independent of past prices and usable for financials, but very sensitive to r − g, and a one-off profit inflates ROE and the fair value.",
 };
 
 const MOS_NOTE_EN =

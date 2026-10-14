@@ -28,7 +28,7 @@ def item(result: dict, method: str) -> dict:
     return next(i for i in result["items"] if i["method"] == method)
 
 
-def test_all_five_methods_computed():
+def test_all_methods_computed():
     # EPS TTM 4, PE history 15/4 = 3.75, PBV 1.5, yield 4% -> DPS 0.6
     r = evaluate(history(), price=12.0, peer_pes=[4.0, 5.0, 6.0], cfg=CFG)
     assert [i["method"] for i in r["items"]] == CFG.enabled
@@ -87,6 +87,24 @@ def test_no_dividend_makes_yield_band_na():
     i = item(r, "dividend_yield_median")
     assert i["fair_value"] is None and i["reason"]
 
+
+
+def test_justified_pbv_from_roe_ttm():
+    # equity 10.00 a share, profit 4 x 0.425 = ROE TTM 17% -> (0.17 - 0.03) / (0.10 - 0.03) = PBV 2
+    r = evaluate(history(eps=0.425), price=12.0, peer_pes=[], cfg=CFG)
+    assert item(r, "justified_pbv")["fair_value"] == pytest.approx(20.0)
+
+
+def test_justified_pbv_na_when_roe_not_above_growth():
+    i = item(evaluate(history(eps=0.05), price=12.0, peer_pes=[], cfg=CFG), "justified_pbv")  # ROE TTM 2%
+    assert i["fair_value"] is None
+    assert "ไม่สูงกว่า g" in i["reason"]
+
+
+def test_justified_pbv_applies_to_financials():
+    # no sector check: a bank at ROE TTM 12% -> (0.12 - 0.03) / 0.07 x 10
+    r = evaluate(history(eps=0.3), price=12.0, peer_pes=[], cfg=CFG)
+    assert item(r, "justified_pbv")["fair_value"] == pytest.approx(12.86)
 
 def with_yields(yields: list[float], dps_now: float, n: int = 20) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Trailing cash yields per quarter (oldest first) and today's trailing DPS."""
@@ -164,11 +182,31 @@ def test_fewer_than_three_peers_is_na():
     assert "น้อยกว่า 3" in item(r, "peer_pe")["reason"]
 
 
+def summary(mos_by_method: dict[str, float]) -> dict:
+    return fair_value.summarize(
+        [{"method": m, "fair_value": 10.0 + i, "mos": mos} for i, (m, mos) in enumerate(mos_by_method.items())]
+    )
+
+
 def test_summary_counts_undervalued():
-    items = [{"fair_value": 10.0 + i, "mos": m} for i, m in enumerate([0.2, 0.1, 0.05, 0.3, -0.1])]
-    s = fair_value.summarize(items)
+    s = summary({"pe_median": 0.2, "pbv_median": 0.1, "dividend_yield_median": 0.05, "justified_pbv": 0.3, "peer_pe": -0.1})
     assert s["label"] == "4/5 undervalued"
     assert (s["min_mos"], s["median_mos"], s["max_mos"]) == (-0.1, 0.1, 0.3)
+
+
+def test_summary_counts_pe_band_as_one_view():
+    s = summary({"pe_median": 0.2, "pe_minus_1sd": 0.1, "pbv_median": 0.1, "dividend_yield_median": 0.05,
+                 "justified_pbv": 0.3, "peer_pe": -0.1})
+    assert s["label"] == "4/5 undervalued"
+    assert (s["min_mos"], s["median_mos"], s["max_mos"]) == (-0.1, 0.1, 0.3)  # from all 6 methods
+
+
+def test_pe_lines_that_disagree_count_by_average():
+    assert summary({"pe_median": 0.2, "pe_minus_1sd": -0.1})["label"] == "1/1 undervalued"  # average +5%
+
+
+def test_pe_minus_1sd_alone_is_the_pe_view():
+    assert summary({"pe_minus_1sd": 0.08, "peer_pe": -0.1})["label"] == "1/2 undervalued"
 
 
 def test_peers_exclude_self_and_other_sectors():

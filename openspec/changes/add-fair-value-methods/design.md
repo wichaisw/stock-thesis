@@ -7,7 +7,7 @@
 ## Goals / Non-Goals
 
 **Goals:**
-- เพิ่ม 2 เกณฑ์โดยใช้ market cap ของเราเองเป็นฐาน EV (ไม่ใช้ `ev_per_ebit_da` ของ thaifin) ให้สอดคล้องกับ PE/PBV band
+- เพิ่ม Justified PBV ซึ่งไม่ขึ้นกับราคาในอดีต
 - นับ undervalued ให้ตรงกับจำนวนมุมมองที่เป็นอิสระจริง โดยไม่เปลี่ยน median MoS ที่ candidate gate ใช้ นอกจากผลจากเกณฑ์ที่เพิ่ม
 
 **Non-Goals:**
@@ -15,6 +15,8 @@
 - ไม่ติดป้ายเตือนใหม่สำหรับ EV/EBITDA (ใช้ `history_gap` และ `structure_change` เดิม)
 
 ## Decisions
+
+> task 1.1 พบว่า `ebit_dattm` ของ thaifin ว่างทุกไตรมาส และ `total_debt` คือหนี้สินรวม จึงตัด EV/EBITDA band ออก D1, D2, D3, D6 ไม่ใช้แล้ว เก็บไว้เป็นเหตุผลสำหรับ change ที่จะทำ EV/EBITDA ภายหลัง
 
 ### D1 EV ใช้ market cap ของเรา + `total_debt` − `cash` จาก thaifin
 - ทางเลือก: ใช้ `ev_per_ebit_da` สำเร็จรูปของ thaifin → ปฏิเสธ เพราะ thaifin คิดจากราคาที่ปรับตามปันผล ซึ่งเป็นเหตุผลเดียวกับที่ PE/PBV band เลิกใช้ราคาจากแหล่งงบ (spec "PE และ PBV ระดับบริษัท")
@@ -50,13 +52,12 @@
 ## Risks / Trade-offs
 
 - [worst case: `total_debt` ของ thaifin คือหนี้สินรวม หรือ `cash` ขาดเงินลงทุนระยะสั้น ทำให้ EV/EBITDA band ผิดทุกตัวเงียบๆ และ median MoS ของทั้งตลาดเพี้ยน candidate list ผิด] → task 1 cross-check ก่อนเขียน code ถ้าไม่ตรงหยุดส่วน EV/EBITDA
-- [Justified PBV ไวต่อ r − g มาก: r 10% → 9% ทำให้ fair value สูงขึ้นราว 17% สำหรับ ROE 17%] → แสดง r, g ใน tooltip และ settings; รายการนี้เป็นแค่ 1 ใน 7 ของ median
+- [Justified PBV ไวต่อ r − g มาก: r 10% → 9% ทำให้ fair value สูงขึ้นราว 17% สำหรับ ROE 17%] → แสดง r, g ใน tooltip และ settings; รายการนี้เป็นแค่ 1 ใน 6 ของ median
 - [หุ้น ROE สูงผิดปกติจากกำไรพิเศษครั้งเดียว ได้ Justified PBV สูงมาก → `max_fair_value` ดัน target optimistic] → มีป้าย upside สูงผิดปกติของ risk/reward อยู่แล้ว และ median ไม่โดนค่าเดียวดึง
 - [median MoS เปลี่ยนเพราะมีเกณฑ์ใหม่ candidate ที่เคยผ่านอาจหลุด หรือกลับกัน] → task integration เทียบ candidate list ก่อน/หลัง และ spot-check หุ้นที่เปลี่ยน
 - [หุ้นเงินสดสุทธิสูง (หนี้สุทธิติดลบ) ได้ fair value สูงขึ้นจากเงินสด] → ตั้งใจ เป็นมุมมองที่เกณฑ์อื่นไม่มี
 
 ## Migration Plan
 
-- `financials_quarterly` ถูกสร้างใหม่อัตโนมัติเมื่อคอลัมน์เปลี่ยน ข้อมูลเติมใน batch ถัดไป
-- run เก่าไม่มี 2 เกณฑ์ใหม่ เว็บแสดงเฉพาะ items ที่มี จึงไม่พัง
-- rollback: เอา 2 เกณฑ์ออกจาก `fair_value.enabled` ในหน้า settings แล้วรัน batch ใหม่
+- run เก่าไม่มีเกณฑ์ใหม่ เว็บแสดงเฉพาะ items ที่มี จึงไม่พัง
+- rollback: เอา `justified_pbv` ออกจาก `fair_value.enabled` ในหน้า settings แล้วรัน batch ใหม่

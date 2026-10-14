@@ -84,3 +84,14 @@ def test_batch_limits_default_and_reject_wrong_type():
     assert b.max_run_minutes == 20
     assert error_locs({"batch.max_consecutive_network_errors": "many"}) == {"batch.max_consecutive_network_errors"}
     assert error_locs({"batch.max_run_minutes": "long"}) == {"batch.max_run_minutes"}
+
+
+def test_justified_pbv_defaults():
+    cfg = load_config().fair_value
+    assert (cfg.cost_of_equity, cfg.terminal_growth) == (0.10, 0.03)
+    assert "justified_pbv" in cfg.enabled
+
+
+@pytest.mark.parametrize("g", [0.10, 0.12])
+def test_growth_must_be_below_cost_of_equity(g):
+    assert error_locs({"fair_value.cost_of_equity": 0.10, "fair_value.terminal_growth": g}) == {"fair_value.terminal_growth"}

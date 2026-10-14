@@ -20,13 +20,15 @@ quality:
     - Financials
 
 fair_value:
-  enabled: [pe_median, pe_minus_1sd, pbv_median, dividend_yield_median, peer_pe]
+  enabled: [pe_median, pe_minus_1sd, pbv_median, dividend_yield_median, peer_pe, justified_pbv]
   lookback_quarters: 20 # 5 ปี
   min_history_points: 4
   min_peers: 3
   min_dividend_yield: 0.005 # สัดส่วน
   structure_change_threshold: 0.5 # สัดส่วน
   max_pe: 100 # เท่า
+  cost_of_equity: 0.10 # สัดส่วน
+  terminal_growth: 0.03 # สัดส่วน
 
 cdc:
   # ตรงกับ CDC ActionZone V3 2020 ที่ตั้งไว้บน TradingView (close 12 26 1) ค่าตรงกันทุกหลักทศนิยม

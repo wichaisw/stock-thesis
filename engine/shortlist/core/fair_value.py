@@ -4,6 +4,7 @@ import pandas as pd
 
 from shortlist.config import FairValue
 from shortlist.core import num
+from shortlist.core.quality import roe_ttm
 
 LABELS = {
     "pe_median": "PE band (median 5 ปี)",
@@ -11,7 +12,11 @@ LABELS = {
     "pbv_median": "PBV band (median 5 ปี)",
     "dividend_yield_median": "Dividend yield band (median 5 ปี)",
     "peer_pe": "Peer PE (median ของ sector)",
+    "justified_pbv": "Justified PBV ((ROE − g) ÷ (r − g))",
 }
+
+# both PE lines read the same profit TTM, so together they are one independent view in the summary
+VIEW = {"pe_minus_1sd": "pe_median"}
 
 
 def eps_ttm(quarterly: pd.DataFrame) -> float | None:
@@ -54,7 +59,7 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
     def fair(method: str) -> tuple[float | None, str | None]:
         if method in ("pe_median", "pe_minus_1sd", "pbv_median") and not has_cap.any():
             return None, "ไม่มี market cap ย้อนหลัง"
-        if method in ("pe_median", "pe_minus_1sd", "peer_pe", "pbv_median") and not shares:
+        if method in ("pe_median", "pe_minus_1sd", "peer_pe", "pbv_median", "justified_pbv") and not shares:
             return None, "ไม่มีจำนวนหุ้นล่าสุด"
         if method in ("pe_median", "pe_minus_1sd", "peer_pe"):
             if ttm is None:
@@ -93,6 +98,14 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
             if len(paid) < cfg.min_history_points:
                 return None, f"จ่ายปันผลเงินสดถึงเกณฑ์แค่ {len(paid)} ไตรมาสในช่วง 5 ปี"
             return latest["dps_ttm"].iloc[-1] / paid.median(), None
+        if method == "justified_pbv":
+            # same ROE TTM as the quality gate, so the detail page shows one ROE
+            roe, r, g = roe_ttm(reported), cfg.cost_of_equity, cfg.terminal_growth
+            if roe is None:
+                return None, "คำนวณ ROE TTM ไม่ได้"
+            if roe <= g:
+                return None, f"ROE TTM {roe:.1%} ไม่สูงกว่า g {g:.1%}"
+            return (roe - g) / (r - g) * reported["equity"].dropna().iloc[-1] / shares, None
         raise ValueError(method)
 
     items = []
@@ -150,11 +163,14 @@ def summarize(items: list[dict]) -> dict:
                 "median_mos": None, "max_mos": None, "median_fair_value": None, "max_fair_value": None}
     mos = [i["mos"] for i in done]
     fvs = [i["fair_value"] for i in done]
-    undervalued = sum(m > 0 for m in mos)
+    views: dict[str, list[float]] = {}
+    for i in done:
+        views.setdefault(VIEW.get(i["method"], i["method"]), []).append(i["mos"])
+    undervalued = sum(sum(v) / len(v) > 0 for v in views.values())
     return {
-        "label": f"{undervalued}/{len(done)} undervalued",
+        "label": f"{undervalued}/{len(views)} undervalued",
         "undervalued": undervalued,
-        "computed": len(done),
+        "computed": len(views),
         "min_mos": min(mos),
         "median_mos": num(median(mos), 4),
         "max_mos": max(mos),

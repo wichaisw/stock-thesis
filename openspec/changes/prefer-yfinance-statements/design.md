@@ -40,7 +40,7 @@
 
 ## Risks / Trade-offs
 
-- [worst case: `Stockholders Equity` หรือ `Net Income Common Stockholders` ของ yfinance ผิดเงียบๆ (หน่วย, งบเฉพาะกิจการแทนงบรวม, ไตรมาสเลื่อน) ทำให้ ROE TTM และ fair value ของทุกหุ้นเพี้ยน candidate list ผิดทั้งชุด] → task 1 cross-check กับงบบน SET ก่อนเขียน code และ spot-check หลังรัน batch
+- [worst case: `Stockholders Equity` หรือ `Net Income` ของ yfinance ผิดเงียบๆ (หน่วย, งบเฉพาะกิจการแทนงบรวม, ไตรมาสเลื่อน) ทำให้ ROE TTM และ fair value ของทุกหุ้นเพี้ยน candidate list ผิดทั้งชุด] → task 1 cross-check กับงบบน SET ก่อนเขียน code และ spot-check หลังรัน batch
 - [ไตรมาสล่าสุดมาจาก yfinance แต่ไตรมาสเก่ามาจาก thaifin ถ้าสองแหล่งนิยามต่างกันเล็กน้อย PE band จะมีรอยต่อ] → cross-check ไตรมาสที่ซ้อนกันของสองแหล่ง ถ้าต่างเกิน 2% อย่างเป็นระบบ หยุดก่อน
 - [EPS TTM ที่แสดงยังมาจาก thaifin แต่ PE ใช้กำไรจาก yfinance ตัวเลขในหน้ารายละเอียดอาจไม่ตรงกันเล็กน้อย] → ยอมรับ EPS ใช้แสดงผลเท่านั้น
 - [request เพิ่ม 2 ครั้งต่อหุ้น batch ช้าลงหรือโดน rate limit ของ Yahoo] → วัดเวลาใน task integration เทียบกับ run ก่อน ยังมีเพดาน 20 นาทีอยู่

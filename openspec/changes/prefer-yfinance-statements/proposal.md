@@ -11,7 +11,7 @@ yfinance มีงบรายไตรมาสแค่ 5–6 ไตรมา�
 - กำไรสุทธิและส่วนผู้ถือหุ้น (ไม่รวมส่วนได้เสียที่ไม่มีอำนาจควบคุม) รายไตรมาส ใช้ค่าจาก yfinance ก่อน ถ้าไตรมาสนั้นไม่มีค่าจาก yfinance ใช้ค่าจาก thaifin
 - ไม่ใช้งบจาก yfinance ของบริษัทที่รายงานงบเป็นสกุลเงินอื่นที่ไม่ใช่บาท (เช่น PTTEP รายงานเป็น USD) ใช้ thaifin ทั้งหมด
 - ดึงงบจาก yfinance ไม่ได้ (error หรือข้อมูลว่าง) ไม่ทำให้หุ้น fail ใช้ thaifin ทั้งหมดแทน
-- ก่อนเขียน code ต้อง cross-check `Stockholders Equity` และ `Net Income Common Stockholders` ของ yfinance กับงบบน SET ของชุดหุ้นที่ใช้ตรวจ ถ้าไม่ตรงในเกณฑ์ หยุดและให้ผู้ใช้ตัดสินใจ
+- ก่อนเขียน code ต้อง cross-check `Stockholders Equity` และ `Net Income Common Stockholders` ของ yfinance กับงบบน SET ของชุดหุ้นที่ใช้ตรวจ ถ้าไม่ตรงในเกณฑ์ หยุดและให้ผู้ใช้ตัดสินใจ (ผล task 1.1: ใช้ `Net Income` แทน `Net Income Common Stockholders` ดู design D3)
 
 ผลที่ตามมา: ROE TTM ของ quality gate และ Justified PBV, กำไร TTM ของ PE band, peer PE และ PE ปัจจุบัน คิดจากค่าใหม่ใน 4–6 ไตรมาสล่าสุด
 
@@ -22,7 +22,8 @@ yfinance มีงบรายไตรมาสแค่ 5–6 ไตรมา�
 - การแสดงแหล่งที่มาของแต่ละค่าในหน้าเว็บ
 
 ความสัมพันธ์กับ change อื่น:
-- ทำหลัง `add-fair-value-methods` (ใช้ ROE TTM ตัวเดียวกันกับ Justified PBV) และควรรัน batch ของ change นี้หลัง `add-fair-value-methods` ข้อ 5.1–5.2 เสร็จ เพื่อแยกผลของเกณฑ์ใหม่ออกจากผลของการเปลี่ยนแหล่งข้อมูล code ไม่บล็อกกัน
+- ทำหลัง `add-fair-value-methods` (ใช้ ROE TTM ตัวเดียวกันกับ Justified PBV) code ไม่บล็อกกัน
+- ผู้ใช้เลือก (15 ต.ค. 2026) ให้ change นี้มีผลกับ batch ของ `simplify-risk-reward` ข้อ 4.1 และ `add-fair-value-methods` ข้อ 5.1 ด้วย ไม่รัน batch แยกบน code ก่อน change นี้ ผลของเกณฑ์ใหม่กับผลของการเปลี่ยนแหล่งข้อมูลจึงปนกันใน batch เดียว
 - ไม่บล็อกและไม่ถูกบล็อกโดย `simplify-risk-reward`, `investor-type-flow`, `flag-stale-price-bars`
 
 ## Capabilities

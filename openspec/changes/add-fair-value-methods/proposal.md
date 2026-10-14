@@ -25,6 +25,7 @@ fair value panel ตอนนี้มี 5 เกณฑ์ แต่ทุก�
 
 ความสัมพันธ์กับ change อื่น:
 - `simplify-risk-reward` ข้อ 4.1 (spot-check ป้าย upside สูงผิดปกติของ EA, TPCH, SRICHA) ควรทำก่อนรัน batch ของ change นี้ เพราะเกณฑ์ใหม่เปลี่ยน median fair value ซึ่งเป็น target ทำให้ผลเทียบกับที่คาดไว้ไม่ได้ code ไม่บล็อกกัน
+- batch ของข้อ 5.1 ใช้กำไรสุทธิและส่วนผู้ถือหุ้นจาก yfinance ของ `prefer-yfinance-statements` ด้วย (ผู้ใช้เลือก 15 ต.ค. 2026) median MoS และ candidate list ที่เปลี่ยนจึงเป็นผลของทั้งสอง change
 - ไม่บล็อกและไม่ถูกบล็อกโดย `investor-type-flow` และ `flag-stale-price-bars` (คนละ requirement)
 
 ## Capabilities

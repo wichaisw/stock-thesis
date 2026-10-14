@@ -26,5 +26,6 @@
 ## Workflow follow-up
 
 - ทำ `simplify-risk-reward` ข้อ 4.1 ก่อนรัน batch ของข้อ 5.1
+- batch ของข้อ 5.1 รวมงบจาก yfinance ของ `prefer-yfinance-statements` แล้ว (ผู้ใช้เลือก 15 ต.ค. 2026) ใช้ batch นี้เป็นของข้อ 3.1 ของ change นั้นด้วยได้
 - ตอน archive ตรวจ Purpose ของ `openspec/specs/fair-value-panel/spec.md` ว่ายังถูก (พูดถึง "เกณฑ์ valuation" โดยรวม ไม่ต้องแก้)
 - EV/EBITDA band ต้องหาแหล่งงบที่มี EBITDA และหนี้ที่มีภาระดอกเบี้ยย้อนหลัง 5 ปีก่อน แยกเป็น change ใหม่

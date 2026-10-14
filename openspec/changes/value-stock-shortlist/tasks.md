@@ -29,9 +29,9 @@
 
 ## 5. Batch
 
-- [ ] 5.1 ทำ batch ตามลำดับใน design D4 โดยมี error handling รายหุ้นและเขียนผลใน transaction เดียว ตรวจด้วย test ที่ใช้ source ปลอมซึ่งให้หุ้นหนึ่งตัว error แล้ว batch ยังจบและบันทึก failure
-- [ ] 5.2 ทำการกัน batch รันซ้อนและการ mark run ที่ค้างเกิน 30 นาที (design D5) ตรวจด้วย test ที่เริ่ม run ที่สองขณะ run แรกยัง `running`
-- [ ] 5.3 ทำคำสั่ง CLI สำหรับรัน batch ตรวจด้วยการรันกับข้อมูลจริงทั้งตลาด แล้วบันทึกเวลาที่ใช้และจำนวนหุ้นที่ fail ลง `engine/README.md`
+- [x] 5.1 ทำ batch ตามลำดับใน design D4 โดยมี error handling รายหุ้นและเขียนผลใน transaction เดียว ตรวจด้วย test ที่ใช้ source ปลอมซึ่งให้หุ้นหนึ่งตัว error แล้ว batch ยังจบและบันทึก failure
+- [x] 5.2 ทำการกัน batch รันซ้อนและการ mark run ที่ค้างเกิน 30 นาที (design D5) ตรวจด้วย test ที่เริ่ม run ที่สองขณะ run แรกยัง `running`
+- [x] 5.3 ทำคำสั่ง CLI สำหรับรัน batch ตรวจด้วยการรันกับข้อมูลจริงทั้งตลาด แล้วบันทึกเวลาที่ใช้และจำนวนหุ้นที่ fail ลง `engine/README.md`
 
 ## 6. Engine API
 

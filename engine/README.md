@@ -32,3 +32,11 @@ scripts/            spike และ backtest
 - `bear-approaching` cross จริงบ่อยกว่า baseline ราว 1.8 เท่า จึง**คงค่า default ให้ CDC เป็น gate** (`candidates.accepted_states: [bear-approaching, just-crossed]`) ถ้าอยากใช้ CDC เป็นตัวเรียงอย่างเดียว ให้ใส่ทั้ง 4 state
 - ราว 37% ของสัญญาณยังไม่ cross ใน 20 วัน
 - มี look-ahead bias: คัดหุ้นด้วยสภาพคล่องของวันนี้ ไม่ใช่ของวันในอดีต
+
+### Batch ทั้งตลาด (task 5.3, 14 ต.ค. 2026)
+
+`uv run shortlist-batch` รอบแรกบนเครื่อง local (เน็ตบ้าน)
+
+- ใช้เวลา **62 วินาที** สำหรับ 930 ตัว (ราคาทั้งตลาด + งบ 169 ตัวที่ผ่าน liquidity) ไม่โดน rate limit
+- **fail 7 ตัว**: ไม่มีราคาจาก yfinance 4 ตัว (ACAP, BLISS, GSTEEL, WELL) และ thaifin ตอบ "not found" 3 ตัว (FLE, GST, TIPAK)
+- funnel: ผ่าน liquidity 169 → ผ่าน quality 59 → median MoS ≥ 10% 32 → candidates 7

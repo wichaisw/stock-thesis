@@ -32,7 +32,7 @@ def classify(fast: pd.Series, slow: pd.Series, cfg: Cdc) -> dict:
     if above[-1]:
         below_idx = (~above).nonzero()[0]
         if len(below_idx):
-            days_since_cross = len(above) - 1 - below_idx[-1] - 1
+            days_since_cross = int(len(above) - 1 - below_idx[-1] - 1)
         # a cross older than the price history is just a long-running bull
         crossed_recently = days_since_cross is not None and days_since_cross < cfg.just_crossed_days
         state = "just-crossed" if crossed_recently else "bull"

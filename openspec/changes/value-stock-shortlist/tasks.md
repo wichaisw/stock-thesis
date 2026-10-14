@@ -16,9 +16,10 @@
 ## 3. CDC และ Phase 0 spike
 
 - [x] 3.1 ทำ `core/cdc` ที่คำนวณ AP/Fast/Slow, gap%, ความเร็ว, ETA และ state ตาม spec `cdc-proximity` ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec รวมถึงกรณีราคาไม่พอ 60 วัน
-- [ ] 3.2 เทียบค่า Fast/Slow ที่คำนวณได้กับ CDC ActionZone บน TradingView ของหุ้น 3 ตัว แล้วบันทึกผลใน `engine/README.md` ตรวจว่าค่าตรงกันภายในความคลาดเคลื่อนจากการปัดเศษ
+- [x] 3.2 เทียบค่า Fast/Slow ที่คำนวณได้กับ CDC ActionZone บน TradingView ของหุ้น 3 ตัว แล้วบันทึกผลใน `engine/README.md` ตรวจว่าค่าตรงกันภายในความคลาดเคลื่อนจากการปัดเศษ
 - [x] 3.3 ทำ script backtest ใน `engine/scripts/` (design D8) ที่รายงาน % ที่ `bear-approaching` เกิด cross จริงภายใน 20 วันทำการ ตรวจว่า script รันจบและพิมพ์ผล แล้วบันทึกผลและค่า default ของ state ที่เลือกลง `config.yaml` และ `engine/README.md`
 - [x] 3.4 แก้ backtest ให้นับเฉพาะวันที่หุ้นผ่าน liquidity ณ วันนั้น และรายงาน median return 20/60 วันของ `bear-approaching` เทียบกับ `bear-far` (design D8) รันใหม่ แล้วอัปเดตผลใน `engine/README.md` และทบทวน `accepted_states` ใน `config.yaml`
+- [x] 3.5 เปลี่ยนสูตร CDC ตาม spec `cdc-proximity` (ราคาตั้งต้นเป็น close และ smoothing 1 โดยเลือก ohlc4 ได้ใน config) ตรวจด้วย test ของทั้งสองแบบ แล้วรัน backtest (task 3.4) ใหม่และอัปเดตผลใน `engine/README.md`
 
 ## 4. Core evaluation
 

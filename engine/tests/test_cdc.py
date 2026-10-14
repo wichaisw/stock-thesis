@@ -67,17 +67,29 @@ def test_too_few_days_has_no_state():
     assert "ข้อมูลราคาไม่พอ" in r["reason"]
 
 
-def test_lines_follow_cdc_formula():
-    prices = pd.DataFrame(
-        {"open": [10.0, 11.0, 12.0], "high": [12.0, 13.0, 14.0], "low": [8.0, 9.0, 10.0], "close": [10.0, 11.0, 12.0]}
-    )
-    df = cdc.lines(prices, CFG)
-    src = [10.0, 11.0, 12.0]
-    ap = [src[0]]
-    for x in src[1:]:
-        ap.append(ap[-1] + (2 / 3) * (x - ap[-1]))  # EMA 2 -> alpha 2/3
+PRICES = pd.DataFrame(
+    {"open": [10.0, 11.0, 12.0], "high": [12.0, 13.0, 14.0], "low": [8.0, 9.0, 10.0], "close": [10.5, 11.5, 12.5]}
+)
+
+
+def ema_list(xs: list[float], length: int) -> list[float]:
+    out = [xs[0]]
+    for x in xs[1:]:
+        out.append(out[-1] + (2 / (length + 1)) * (x - out[-1]))
+    return out
+
+
+def test_default_matches_tradingview_v3_settings():
+    # CDC ActionZone V3 2020 "close 12 26 1": no smoothing, so AP is the close itself
+    df = cdc.lines(PRICES, CFG)
+    close = PRICES["close"].tolist()
+    assert df["ap"].tolist() == pytest.approx(close)
+    assert df["fast"].tolist() == pytest.approx(ema_list(close, 12))
+    assert df["slow"].tolist() == pytest.approx(ema_list(close, 26))
+
+
+def test_lines_follow_ohlc4_formula():
+    df = cdc.lines(PRICES, CFG.model_copy(update={"source": "ohlc4", "ap_length": 2}))
+    ap = ema_list([10.125, 11.125, 12.125], 2)
     assert df["ap"].tolist() == pytest.approx(ap)
-    fast = [ap[0]]
-    for x in ap[1:]:
-        fast.append(fast[-1] + (2 / 13) * (x - fast[-1]))
-    assert df["fast"].tolist() == pytest.approx(fast)
+    assert df["fast"].tolist() == pytest.approx(ema_list(ap, 12))

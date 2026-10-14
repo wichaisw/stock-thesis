@@ -27,7 +27,9 @@ fair_value:
   max_pe: 100  # PE ย้อนหลังที่สูงกว่านี้มาจาก EPS ใกล้ศูนย์ ไม่นำไปคิด band
 
 cdc:
-  ap_length: 2
+  # ตรงกับ CDC ActionZone V3 2020 ที่ตั้งไว้บน TradingView (close 12 26 1) ค่าตรงกันทุกหลักทศนิยม
+  source: close  # close | ohlc4
+  ap_length: 1  # smoothing period, 1 = ไม่ smooth
   fast_length: 12
   slow_length: 26
   speed_window: 5
@@ -44,7 +46,7 @@ risk_reward:
 
 candidates:
   min_median_mos: 0.10
-  # backtest 3 ปี ไม่มี look-ahead: bear-approaching cross ใน 20 วัน 63.5% เทียบ bear-far 32.7% (ดู README)
+  # backtest 3 ปี ไม่มี look-ahead: bear-approaching cross ใน 20 วัน 62.5% เทียบ bear-far 33.1% (ดู README)
   accepted_states: [bear-approaching, just-crossed]
 
 catalyst:

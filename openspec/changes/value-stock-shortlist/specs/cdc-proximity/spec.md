@@ -7,7 +7,7 @@
 ## ADDED Requirements
 
 ### Requirement: คำนวณเส้น CDC ActionZone
-ระบบ SHALL คำนวณจากราคาปิดรายวันที่ clean แล้ว: ราคาตั้งต้น = (open + high + low + close) / 4, AP = EMA 2 วันของราคาตั้งต้น, Fast = EMA 12 วันของ AP, Slow = EMA 26 วันของ AP ค่าความยาว EMA ทั้งหมด SHALL ปรับได้ใน config
+ระบบ SHALL คำนวณจากราคารายวันที่ clean แล้วตาม CDC ActionZone V3 2020 ที่ผู้ใช้ตั้งไว้บน TradingView: ราคาตั้งต้น = ราคาปิด, AP = EMA ของราคาตั้งต้นด้วย smoothing period 1 (คือไม่ smooth), Fast = EMA 12 วันของ AP, Slow = EMA 26 วันของ AP ราคาตั้งต้น (close หรือ (open + high + low + close) / 4) และค่าความยาว EMA ทั้งหมด SHALL ปรับได้ใน config
 
 #### Scenario: ผลตรงกับ indicator ต้นฉบับ
 - **WHEN** คำนวณ Fast และ Slow ของหุ้นตัวอย่างในวันเดียวกับที่เปิดดูบน TradingView

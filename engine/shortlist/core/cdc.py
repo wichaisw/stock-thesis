@@ -9,7 +9,10 @@ def ema(series: pd.Series, length: int) -> pd.Series:
 
 
 def lines(prices: pd.DataFrame, cfg: Cdc) -> pd.DataFrame:
-    src = (prices["open"] + prices["high"] + prices["low"] + prices["close"]) / 4
+    if cfg.source == "ohlc4":
+        src = (prices["open"] + prices["high"] + prices["low"] + prices["close"]) / 4
+    else:
+        src = prices["close"]
     ap = ema(src, cfg.ap_length)
     return pd.DataFrame({"ap": ap, "fast": ema(ap, cfg.fast_length), "slow": ema(ap, cfg.slow_length)})
 

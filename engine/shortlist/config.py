@@ -40,6 +40,7 @@ class FairValue(Strict):
 
 
 class Cdc(Strict):
+    source: Literal["close", "ohlc4"]
     ap_length: int
     fast_length: int
     slow_length: int

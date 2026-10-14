@@ -28,6 +28,9 @@ def create_app(
     today: Callable[[], date] = date.today,
 ) -> FastAPI:
     app = FastAPI(title="shortlist engine")
+    # create the schema up front: parallel first requests racing to create it (and to switch
+    # the file to WAL) get "database is locked"
+    db.connect(db_path).close()
 
     def conn() -> Iterator[sqlite3.Connection]:
         c = db.connect(db_path)

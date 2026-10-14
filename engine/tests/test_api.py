@@ -95,3 +95,13 @@ def test_event_needs_text(client):
     c, _ = client
     c.post("/runs")
     assert c.post("/stocks/AAA/events", json={"date": "2026-12-14", "text": ""}).status_code == 422
+
+
+
+def test_schema_exists_before_first_request(tmp_path):
+    # parallel first requests racing to create the schema can hit "database is locked"
+    import sqlite3
+
+    create_app(db_path=tmp_path / "fresh.db", sources=fake_sources, today=lambda: TODAY)
+    tables = {r[0] for r in sqlite3.connect(tmp_path / "fresh.db").execute("SELECT name FROM sqlite_master")}
+    assert {"runs", "evaluations"} <= tables

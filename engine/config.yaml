@@ -1,0 +1,87 @@
+# เกณฑ์ทั้งหมดของ engine ค่าที่เป็นสัดส่วนเขียนเป็นทศนิยม (0.10 = 10%)
+# โหลดใหม่ทุกครั้งที่รัน batch
+
+liquidity:
+  window_days: 20
+  min_avg_traded_value: 10_000_000  # บาท/วัน
+
+quality:
+  min_quarters: 12
+  min_roe: 0.10
+  max_de: 1.5
+  ocf_window: 4
+  ocf_min_positive: 3
+  no_loss_window: 4
+  # sector ตาม thaifin (หุ้น mai ใช้ industry แทนเพราะ sector เป็น "-")
+  financial_sectors:
+    - Banking
+    - Finance & Securities
+    - Insurance
+    - Financials
+
+fair_value:
+  enabled: [pe_mean, pe_minus_1sd, pbv_mean, dividend_yield_mean, peer_pe]
+  lookback_quarters: 20  # 5 ปี
+  min_history_points: 4
+  min_peers: 3
+
+cdc:
+  ap_length: 2
+  fast_length: 12
+  slow_length: 26
+  speed_window: 5
+  approaching_eta_days: 20
+  just_crossed_days: 5
+  min_days: 60
+
+risk_reward:
+  swing_low_days: 20
+  stop_buffer: 0.03
+  min_rrr: 2.0
+  min_hold_months: 1
+  max_hold_months: 3
+
+candidates:
+  min_median_mos: 0.10
+  accepted_states: [bear-approaching, just-crossed]
+
+catalyst:
+  horizon_months: 6
+  quarter_deadline_days: 45
+  annual_deadline_days: 60
+  # วันประกาศและวันมีผลของ SET50/100 review (ประมาณ ปรับเมื่อ SET ประกาศจริง)
+  index_reviews:
+    - {date: 2026-12-15, label: "ประกาศผล SET50/100 review"}
+    - {date: 2027-01-04, label: "SET50/100 รอบใหม่มีผล"}
+    - {date: 2027-06-15, label: "ประกาศผล SET50/100 review"}
+    - {date: 2027-07-01, label: "SET50/100 รอบใหม่มีผล"}
+  default_hints:
+    - แนวโน้มกำไรไตรมาสถัดไปเทียบ consensus
+    - การเปลี่ยนแปลงนโยบายปันผล
+    - ข่าวลงทุนหรือ M&A
+  hints:
+    Tourism & Leisure: [ยอด booking ล่วงหน้า, จำนวนนักท่องเที่ยวต่างชาติ, อัตราเข้าพัก (occupancy) และ RevPAR]
+    Construction Services: [backlog, การประมูลงานภาครัฐ, งบลงทุนภาครัฐ]
+    Construction Materials: [ราคาเหล็กและปูนซีเมนต์, ยอดก่อสร้างภาครัฐและเอกชน]
+    Property Development: [ยอด presales, การเปิดโครงการใหม่, อัตรา reject สินเชื่อบ้าน]
+    Energy & Utilities: [ราคาน้ำมันและก๊าซ, ค่า Ft, ผลประมูลสัมปทานหรือ PPA ใหม่]
+    Banking: [NIM และทิศทางดอกเบี้ยนโยบาย, NPL และ credit cost, การเติบโตของสินเชื่อ]
+    Finance & Securities: [มูลค่าซื้อขายในตลาด, NPL ของพอร์ตสินเชื่อ, ทิศทางดอกเบี้ย]
+    Insurance: [เบี้ยรับรวม, loss ratio, ผลตอบแทนจากการลงทุน]
+    Commerce: [same-store sales growth, การขยายสาขา, กำลังซื้อผู้บริโภค]
+    Food & Beverage: [ราคาวัตถุดิบ, ยอดส่งออก, ค่าเงินบาท]
+    Agribusiness: [ราคาสินค้าเกษตร, สภาพอากาศและผลผลิต]
+    Health Care Services: [จำนวนผู้ป่วยต่างชาติ, การเปิดโรงพยาบาลใหม่, ประกันสังคม]
+    Information & Communication Technology: [ARPU และจำนวนผู้ใช้, การประมูลคลื่นความถี่, งานโครงการภาครัฐ]
+    Electronic Components: [ยอดสั่งซื้อจากลูกค้าต่างประเทศ, ค่าเงินบาท, วัฏจักร semiconductor]
+    Transportation & Logistics: [ปริมาณผู้โดยสารหรือสินค้า, ค่าระวางเรือ, ราคาน้ำมัน]
+    Petrochemicals & Chemicals: [spread ผลิตภัณฑ์, ราคาน้ำมัน, อุปสงค์จากจีน]
+    Automotive: [ยอดผลิตและขายรถยนต์, ยอดส่งออก]
+    Media & Publishing: [งบโฆษณา, เรตติ้ง]
+
+batch:
+  markets: [SET, mai]
+  price_period: 1y
+  price_chunk_size: 100
+  chunk_delay_seconds: 1.0
+  stale_run_minutes: 30

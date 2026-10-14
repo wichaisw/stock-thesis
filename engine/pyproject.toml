@@ -1,0 +1,23 @@
+[project]
+name = "engine"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.143.0",
+    "pandas>=3.0.6",
+    "pydantic>=2.14.1",
+    "pyyaml>=6.0.3",
+    "thaifin>=1.1.0",
+    "uvicorn>=0.54.0",
+    "yfinance>=1.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

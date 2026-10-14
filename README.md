@@ -50,7 +50,9 @@ batch ทั้งตลาดใช้ราว 1 นาที (ดึงรา
 
 ## แก้เกณฑ์
 
-เกณฑ์ทั้งหมดอยู่ใน `engine/config.yaml` (liquidity, quality gate, เกณฑ์ fair value ที่เปิดใช้, ความยาว EMA ของ CDC, state ที่รับเข้า list, MoS, RRR, catalyst hints ราย sector, วัน SET50/100 review) ค่าสัดส่วนเขียนเป็นทศนิยม (`0.10` = 10%)
+เกณฑ์กรองหุ้น (liquidity, quality gate, เกณฑ์ fair value ที่เปิดใช้, CDC state และ ETA, MoS, RRR) แก้ได้ที่หน้า **ตั้งค่า** ของเว็บ (ลิงก์ "ตั้งค่า" บน header หรือปุ่ม "ปรับเกณฑ์" ข้างปุ่มรัน batch) แต่ละช่องมี tooltip อธิบายว่าเพิ่มหรือลดค่าแล้วผลเปลี่ยนอย่างไร ค่าที่แก้เก็บใน `engine/shortlist.db` และมีผลกับ batch ครั้งถัดไปทั้งจากปุ่มบนเว็บและ cron
+
+`engine/config.yaml` เป็นค่า default ของทุกเกณฑ์ (ปุ่มคืนค่า default บนหน้าตั้งค่าจะกลับไปใช้ค่าในไฟล์นี้) และเป็นที่เดียวที่แก้สูตร CDC (ต้องตรงกับ TradingView), รายชื่อ sector การเงิน, catalyst hints, วัน SET50/100 review และค่าของ batch ค่าสัดส่วนในไฟล์เขียนเป็นทศนิยม (`0.10` = 10%) ลำดับการรวมค่าอยู่ใน `engine/README.md` ส่วน "ค่าเกณฑ์มาจากไหน"
 
 batch โหลด config ใหม่ทุกครั้ง แก้แล้วกดรัน batch ใหม่ได้เลยไม่ต้อง restart ถ้าใส่ค่าผิดประเภทหรือสะกดชื่อ key ผิด batch จะ error พร้อมบอกชื่อ field
 

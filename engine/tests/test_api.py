@@ -198,3 +198,10 @@ def test_saved_settings_reach_the_next_run(client):
     c.post("/runs")
     assert not c.get("/stocks/AAA").json()["evaluation"]["liquidity"]["passed"]
     assert c.get("/candidates").json()["stale"] is False
+
+
+def test_web_started_batch_logs_the_funnel(client, caplog):
+    c, _ = client
+    with caplog.at_level("INFO", logger="shortlist"):
+        c.post("/runs")
+    assert "ผ่าน liquidity" in caplog.text and "candidates" in caplog.text

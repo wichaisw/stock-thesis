@@ -17,6 +17,12 @@ from shortlist.core import catalyst
 from shortlist.core.fair_value import LABELS as FAIR_VALUE_LABELS
 
 log = logging.getLogger("shortlist")
+# uvicorn only configures its own loggers; without this the batch funnel (INFO) is dropped
+if not log.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
 
 
 class EventIn(BaseModel):
@@ -127,7 +133,7 @@ def create_app(
             except Exception as e:
                 db.fail_run(c, run_id, f"{type(e).__name__}: {e}")
                 raise
-            batch.execute(c, run_id, prices, financials, cfg, today())
+            batch.execute(c, run_id, prices, financials, cfg, today(), log=log.info)
         except Exception:
             # the run is already marked failed; keep the server alive
             log.exception("batch run %s failed", run_id)

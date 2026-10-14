@@ -72,14 +72,15 @@ class RunGuard:
 
 def default_sources(cfg: Config) -> tuple[PriceSource, FinancialSource, InvestorFlowSource]:
     # imported here so tests and the API can load without touching network libraries
+    from shortlist.sources.preferred import PreferredStatements
     from shortlist.sources.set_investor import SetInvestorFlow
     from shortlist.sources.thaifin_source import ThaifinFinancials
-    from shortlist.sources.yahoo import YahooPrices
+    from shortlist.sources.yahoo import YahooPrices, fetch_statements
 
     b = cfg.batch
     return (
         YahooPrices(b.price_period, b.price_chunk_size, b.chunk_delay_seconds),
-        ThaifinFinancials(b.markets),
+        PreferredStatements(ThaifinFinancials(b.markets), fetch_statements),
         SetInvestorFlow(),
     )
 
@@ -186,6 +187,9 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
         guard.record(sym, network)
 
     log(f"ดึงงบและ market cap {len(quarterly)} ตัว ({guard.lap()})")
+    # a sudden drop to 0 means yfinance renamed a row and everything fell back to thaifin silently
+    if (overlaid := getattr(fin_src, "overlaid", None)) is not None:
+        log(f"ใช้กำไรและส่วนผู้ถือหุ้นจาก yfinance {len(overlaid & quarterly.keys())} ตัว")
     guard.check("ประเมิน")
     by_symbol = {s.symbol: s for s in stocks}
     pe_by_symbol = {

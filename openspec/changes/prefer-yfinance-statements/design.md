@@ -25,9 +25,10 @@
 - ใช้ label ไตรมาสจากวันสิ้นงวดของ yfinance (`2026-06-30` → `2026Q2`) แล้วทับ `net_profit` และ `equity` เฉพาะแถวที่ thaifin มี และเฉพาะช่องที่ yfinance มีค่า
 - ทางเลือก: เพิ่มไตรมาสที่ yfinance มีแต่ thaifin ยังไม่มี → ปฏิเสธ แถวนั้นไม่มี EPS ตาม requirement "Clean ข้อมูลที่ยังไม่สมบูรณ์" จึงไม่ถูกนับเป็นงบล่าสุดอยู่ดี และจะเป็นแถวที่ข้อมูลไม่ครบ
 
-### D3 ใช้ `Stockholders Equity` และ `Net Income Common Stockholders`
+### D3 ใช้ `Stockholders Equity` และ `Net Income`
 - ทั้งคู่ไม่รวมส่วนได้เสียที่ไม่มีอำนาจควบคุม ตรงกับ `equity` และ `net_profit` ของ thaifin (task 1.1 ของ `add-fair-value-methods` พบว่า equity ของ thaifin เป็นของบริษัทใหญ่)
-- ทางเลือก: `Total Equity Gross Minority Interest` / `Net Income` → ปฏิเสธ รวมส่วนของผู้ถือหุ้นส่วนน้อย ทำให้ ROE และ PBV เพี้ยนสำหรับบริษัทที่มีบริษัทย่อยใหญ่ (เช่น PTT, CPALL)
+- ทางเลือก: `Total Equity Gross Minority Interest` / `Net Income Including Noncontrolling Interests` → ปฏิเสธ รวมส่วนของผู้ถือหุ้นส่วนน้อย ทำให้ ROE และ PBV เพี้ยนสำหรับบริษัทที่มีบริษัทย่อยใหญ่ (เช่น PTT, CPALL)
+- ทางเลือก: `Net Income Common Stockholders` → ปฏิเสธหลัง task 1.1: หักดอกเบี้ยหุ้นกู้ด้อยสิทธิไม่มีกำหนดไถ่ถอนออก (CPALL −1.2% ถึง −1.75% ทุกไตรมาส) ไม่ตรงกับ SET และ thaifin ทำให้ PE band มีรอยต่อ ส่วน `Stockholders Equity` ยังรวมหุ้นกู้นั้นอยู่ ตัวตั้งกับตัวหารจึงไม่สอดคล้องกัน `Net Income` ตรงกับ SET ทุกตัว
 
 ### D4 ใช้งบจาก yfinance เฉพาะเมื่อ `financialCurrency` เป็น THB
 - ทางเลือก: แปลงสกุลเงินด้วยอัตราแลกเปลี่ยน → ปฏิเสธ ต้องมีแหล่งอัตราแลกเปลี่ยนรายไตรมาสที่ยังไม่ได้ตรวจ และ thaifin รายงานเป็นบาทอยู่แล้ว

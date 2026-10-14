@@ -6,6 +6,7 @@ import pytest
 from shortlist import batch, db
 from shortlist.config import load_config
 from shortlist.sources import StockInfo
+from shortlist.sources.preferred import PreferredStatements
 from tests.fakes import (
     FakeFinancials,
     FakeInvestorFlow,
@@ -270,3 +271,17 @@ def test_investor_flow_failure_leaves_run_and_history_alone(tmp_path, error, log
     [row] = db.investor_flow(conn)
     assert row["foreign_buy"] == 40e9
     assert any(logged in ln and str(error) in ln for ln in lines), lines
+
+
+def test_failing_supplementary_statements_still_evaluate_the_stock(tmp_path):
+    def boom(_):
+        raise RuntimeError("HTTP 429")
+
+    prices, fin = fake_sources()
+    lines: list[str] = []
+    conn = db.connect(tmp_path / "t.db")
+    run_id = batch.run(conn, prices, PreferredStatements(fin, boom), CFG, log=lines.append)
+
+    assert "AAA" not in db.failures(conn, run_id)
+    assert db.evaluation(conn, run_id, "AAA")["fair_value"]["summary"]["computed"] > 0
+    assert "ใช้กำไรและส่วนผู้ถือหุ้นจาก yfinance 0 ตัว" in lines

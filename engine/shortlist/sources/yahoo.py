@@ -80,6 +80,35 @@ class YahooPrices:
             return f"เชื่อมต่อแหล่งราคาไม่ได้: {e}"
 
 
+# Net Income, not Net Income Common Stockholders: the latter subtracts perpetual-debenture interest and so
+# misses SET and thaifin (README, prefer-yfinance-statements task 1.1)
+STATEMENT_ROWS = {"net_profit": "Net Income", "equity": "Stockholders Equity"}
+STATEMENT_COLUMNS = list(STATEMENT_ROWS)
+
+
+def to_statements(income: pd.DataFrame, balance: pd.DataFrame, currency: str | None) -> pd.DataFrame:
+    """Parent-company net profit and equity per quarter label; empty unless the statements are in baht (design D4)."""
+    if currency != "THB":
+        return pd.DataFrame(columns=STATEMENT_COLUMNS)
+    rows = {}
+    for col, row in STATEMENT_ROWS.items():
+        stmt = income if col == "net_profit" else balance
+        rows[col] = stmt.loc[row] if row in stmt.index else pd.Series(dtype=float)
+    df = pd.DataFrame(rows, columns=STATEMENT_COLUMNS).apply(pd.to_numeric, errors="coerce").dropna(how="all")
+    df.index = [str(pd.Timestamp(d).to_period("Q")) for d in df.index]
+    df.index.name = "quarter"
+    return df.sort_index()
+
+
+def fetch_statements(symbol: str) -> pd.DataFrame:
+    """Never raises: statements are a supplement, so thaifin covers any failure (design D5)."""
+    try:
+        t = yf.Ticker(f"{symbol}.BK")
+        return to_statements(t.quarterly_income_stmt, t.quarterly_balance_sheet, t.info.get("financialCurrency"))
+    except Exception:
+        return pd.DataFrame(columns=STATEMENT_COLUMNS)
+
+
 def _naive(s: pd.Series) -> pd.Series:
     s = s.copy()
     s.index = pd.DatetimeIndex(s.index).tz_localize(None).normalize()

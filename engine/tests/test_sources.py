@@ -6,11 +6,13 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from shortlist.sources import FinancialSource, InvestorFlowSource, PriceSource
+from shortlist.sources import QUARTERLY_COLUMNS, FinancialSource, InvestorFlowSource, PriceSource
+from shortlist.sources.preferred import PreferredStatements
 from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow
 from shortlist.sources.siamchart import to_net_flows
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
-from shortlist.sources.yahoo import YahooPrices, clean_prices, quarterly_market_cap
+from shortlist.sources.yahoo import YahooPrices, clean_prices, fetch_statements, quarterly_market_cap, to_statements
+from tests.fakes import FakeFinancials
 
 
 def test_adapters_satisfy_protocols() -> None:
@@ -18,6 +20,7 @@ def test_adapters_satisfy_protocols() -> None:
     financials: FinancialSource = ThaifinFinancials(["SET"])
     assert isinstance(prices, PriceSource)
     assert isinstance(financials, FinancialSource)
+    assert isinstance(PreferredStatements(financials, fetch_statements), FinancialSource)
 
 
 def test_clean_prices_drops_row_without_close():
@@ -245,3 +248,82 @@ def test_net_flows_reject_the_day_that_does_not_sum_to_zero():
     raw[-2][2] = str(float(raw[-2][2]) + 100)
     with pytest.raises(ValueError, match=raw[-2][0]):
         to_net_flows(raw, since=date(2025, 10, 15))
+
+
+def yahoo_statements(currency: str | None = "THB"):
+    dates = pd.to_datetime(["2026-06-30", "2026-03-31", "2025-12-31"])
+    income = pd.DataFrame(
+        [[7.5e9, 9.1e9, 7.3e9], [7.4e9, 9.0e9, 7.1e9]], index=["Net Income", "Net Income Common Stockholders"], columns=dates
+    )
+    balance = pd.DataFrame([[141e9, np.nan, 138e9]], index=["Stockholders Equity"], columns=dates)
+    return income, balance, currency
+
+
+def test_statements_are_indexed_by_quarter_oldest_first():
+    df = to_statements(*yahoo_statements())
+    assert list(df.index) == ["2025Q4", "2026Q1", "2026Q2"]
+    assert df.loc["2026Q2", "net_profit"] == 7.5e9  # Net Income, not the common-stockholders row
+    assert df.loc["2026Q2", "equity"] == 141e9
+    assert np.isnan(df.loc["2026Q1", "equity"])
+
+
+@pytest.mark.parametrize("currency", ["USD", None])
+def test_statements_not_in_baht_are_dropped(currency):
+    assert to_statements(*yahoo_statements(currency)).empty
+
+
+def test_statements_fetch_error_gives_empty(monkeypatch):
+    def boom(_):
+        raise RuntimeError("HTTP 429")
+
+    monkeypatch.setattr("shortlist.sources.yahoo.yf.Ticker", boom)
+    assert fetch_statements("PTT").empty
+
+
+def thaifin_quarters(labels: list[str]) -> pd.DataFrame:
+    n = len(labels)
+    return pd.DataFrame({c: [1.0] * n for c in QUARTERLY_COLUMNS}, index=labels)
+
+
+QUARTERS_5Y = [f"{y}Q{q}" for y in range(2021, 2027) for q in range(1, 5)][:22]  # 2021Q1–2026Q2
+
+
+def test_preferred_statements_win_on_the_quarters_they_have():
+    recent = QUARTERS_5Y[-5:]  # 2025Q2–2026Q2
+    yahoo = pd.DataFrame({"net_profit": 2.0, "equity": 3.0}, index=recent)
+    src = PreferredStatements(FakeFinancials([], {"PTT": thaifin_quarters(QUARTERS_5Y)}), lambda _: yahoo)
+    df = src.fetch_quarterly("PTT")
+    assert (df.loc[recent, ["net_profit", "equity"]].values == [2.0, 3.0]).all()
+    assert (df.loc[QUARTERS_5Y[:-5], ["net_profit", "equity"]] == 1.0).all().all()
+    assert (df[["eps", "bvps", "de"]] == 1.0).all().all()  # other fields stay from thaifin
+    assert src.overlaid == {"PTT"}
+
+
+def test_preferred_gap_falls_back_to_base():
+    yahoo = pd.DataFrame({"net_profit": [2.0], "equity": [np.nan]}, index=["2026Q1"])
+    df = PreferredStatements(FakeFinancials([], {"PTT": thaifin_quarters(["2026Q1"])}), lambda _: yahoo).fetch_quarterly("PTT")
+    assert (df.loc["2026Q1", "net_profit"], df.loc["2026Q1", "equity"]) == (2.0, 1.0)
+
+
+def test_preferred_quarter_missing_from_base_is_not_added():
+    yahoo = pd.DataFrame({"net_profit": [2.0, 2.0], "equity": [3.0, 3.0]}, index=["2026Q2", "2026Q3"])
+    df = PreferredStatements(FakeFinancials([], {"PTT": thaifin_quarters(["2026Q2"])}), lambda _: yahoo).fetch_quarterly("PTT")
+    assert list(df.index) == ["2026Q2"]
+
+
+def test_preferred_error_or_empty_keeps_base():
+    def boom(_):
+        raise RuntimeError("HTTP 429")
+
+    base = thaifin_quarters(["2026Q2"])
+    for fetch in (boom, lambda _: pd.DataFrame(columns=["net_profit", "equity"])):
+        src = PreferredStatements(FakeFinancials([], {"PTT": base}), fetch)
+        assert src.fetch_quarterly("PTT").equals(base)
+        assert src.overlaid == set()
+
+
+def test_preferred_equal_to_base_still_counts_as_used():
+    base = thaifin_quarters(["2026Q2"])
+    src = PreferredStatements(FakeFinancials([], {"PTT": base}), lambda _: pd.DataFrame({"net_profit": [1.0]}, index=["2026Q2"]))
+    src.fetch_quarterly("PTT")
+    assert src.overlaid == {"PTT"}

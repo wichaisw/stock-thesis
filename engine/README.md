@@ -43,6 +43,26 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 
 ## ผลตรวจข้อมูล
 
+### กำไรสุทธิและส่วนผู้ถือหุ้นของ yfinance (change `prefer-yfinance-statements` task 1.1, 15 ต.ค. 2026)
+
+เทียบ `Net Income Common Stockholders` (`quarterly_income_stmt`) และ `Stockholders Equity` (`quarterly_balance_sheet`) ของ yfinance กับ `net_profit`, `equity` ของ thaifin ทุกไตรมาสที่ yfinance มี (2Q25–2Q26) และกับงบรวมบน SET (`/api/set/stock/<SYM>/company-highlight/financial-data` ให้แค่งวดปี 2025 และ 6M26) หน่วยล้านบาท
+
+| หุ้น | `financialCurrency` | กำไร: yfinance ÷ thaifin − 1 | ส่วนผู้ถือหุ้น: yfinance ÷ thaifin − 1 | กำไร FY25: thaifin ผลรวม 4Q / SET | ส่วนผู้ถือหุ้น 4Q25: yfinance / thaifin / SET |
+|---|---|---|---|---|---|
+| PTT | THB | 2Q25–4Q25 −0.5% / −0.9% / −1.6%, 1Q26–2Q26 0% | 0% | 90,166 / 90,166 | 1,127,422 / 1,127,422 / 1,127,422 |
+| CPALL | THB | −1.2% ถึง −1.75% ทุกไตรมาส | 2Q25, 2Q26 0%; 3Q25–1Q26 +7.2% ถึง +8.1% (+9,955 คงที่) | 28,206 / 28,206 | 138,141 / 128,186 / 138,141 |
+| KBANK | THB | 0% | 0% (1Q26 +0.02%) | 49,565 / 49,565 | 581,146 / 581,146 / 581,146 |
+| SCAP | THB | 0% | 0% | 886 / 886 | 11,276 / 11,276 / 11,276 |
+| GULF | THB | 0% (ไม่มี 1Q25) | 0% (ไม่มี 4Q25) | 79,998 / 79,998 (SET เริ่ม 1 เม.ย. 25 หลังควบรวม) | – / 335,673 / 335,673 |
+| PTTEP | **USD** | 0% | 0% | 60,273 / 60,273 | 519,305 / 519,305 / 519,305 |
+
+ไม่ตรงตรงไหน
+- **`Net Income Common Stockholders` = `Net Income` − `Otherunder Preferred Stock Dividend`** (ดอกเบี้ยหุ้นกู้ด้อยสิทธิไม่มีกำหนดไถ่ถอน) CPALL หัก 115 ล้านทุกไตรมาส PTT หักใน 2Q25–4Q25 จึงต่ำกว่า SET และ thaifin อย่างเป็นระบบ ส่วน `Net Income` ของ yfinance ตรงกับ thaifin และ SET ทุกตัว (CPALL 2Q26 7,511.9)
+- **`equity` ของ thaifin ของ CPALL 3Q25–1Q26 ขาดไป 9,955 ล้าน** SET 4Q25 ตรงกับ yfinance (138,141) ไม่ใช่ thaifin ส่วนนี้ yfinance ถูกกว่า
+- **PTTEP: `financialCurrency` = USD แต่ตัวเลขใน yfinance เป็นบาทและตรงกับ SET** ตาม D4 จะข้ามไปใช้ thaifin ซึ่งตรงกันอยู่แล้ว จึงไม่เสียอะไร
+- ไตรมาสที่ SET แยกให้ดูไม่ได้ (API ให้แค่งวดสะสม) เทียบผ่านผลรวม: 6M26 ของ thaifin ตรง SET ทั้ง 6 ตัว
+- ผล (ผู้ใช้เลือก 15 ต.ค. 2026): ใช้ `Net Income` แทน `Net Income Common Stockholders` (แก้ design D3) และใช้ `Stockholders Equity` ตามเดิม คง D4 ไว้ (PTTEP ใช้ thaifin)
+
 ### ROE และ PE ของ thaifin (task 2.4, 14 ต.ค. 2026)
 
 เทียบ `roe` และ `price_earning_ratio` ของ thaifin กับค่าที่คำนวณจาก `net_profit`, `equity`, `earning_per_share` และ `close` รายไตรมาสของ PTT, CPALL, KBANK (1Q25–2Q26)

@@ -78,6 +78,24 @@ def test_no_dividend_makes_yield_band_na():
     assert i["fair_value"] is None and i["reason"]
 
 
+def test_too_few_dividend_quarters_is_na():
+    # SKY: only 3 tiny-or-recent yields in 5 years made the median ~0 and fair value 1,533 baht
+    q = history(dy=None)
+    q["dividend_yield"] = q["dividend_yield"].astype(float)
+    q.iloc[[0, 1, -1], q.columns.get_loc("dividend_yield")] = [0.0001, 0.0002, 0.021]
+    r = fair_value.evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
+    i = item(r, "dividend_yield_median")
+    assert i["fair_value"] is None and "3 ไตรมาส" in i["reason"]
+
+
+def test_dividend_paid_earlier_in_the_year_still_counts():
+    # GLOBAL: yield shows 0 in the two quarters after the payout
+    q = history(dy=0.04)
+    q.iloc[-2:, q.columns.get_loc("dividend_yield")] = 0.0
+    r = fair_value.evaluate(q, price=12.0, peer_pes=[], cfg=CFG)
+    assert item(r, "dividend_yield_median")["fair_value"] == pytest.approx(15.0)
+
+
 def test_fewer_than_three_peers_is_na():
     r = fair_value.evaluate(history(), price=12.0, peer_pes=[4.0, 5.0], cfg=CFG)
     assert item(r, "peer_pe")["fair_value"] is None

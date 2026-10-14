@@ -56,3 +56,36 @@ scripts/            spike และ backtest
 - ใช้เวลา **62 วินาที** สำหรับ 930 ตัว (ราคาทั้งตลาด + งบ 169 ตัวที่ผ่าน liquidity) ไม่โดน rate limit
 - **fail 7 ตัว**: ไม่มีราคาจาก yfinance 4 ตัว (ACAP, BLISS, GSTEEL, WELL) และ thaifin ตอบ "not found" 3 ตัว (FLE, GST, TIPAK)
 - funnel: ผ่าน liquidity 169 → ผ่าน quality 59 → median MoS ≥ 10% 32 → candidates 7
+
+### End-to-end (task 8.2, 14 ต.ค. 2026)
+
+รัน batch จาก UI (run 3) ได้ candidates 12 ตัว สุ่มมา 3 ตัวคือ GLOBAL, SCAP, SKY
+
+**CDC เทียบกับ TradingView** (CDC ActionZone V3 2020 `close 12 26 1`) ตรงกันทุกตัวและอยู่ฝั่ง bear (Fast < Slow) ตรงกับ state `bear-approaching`
+
+| หุ้น | Fast engine / TradingView | Slow engine / TradingView |
+|---|---:|---:|
+| GLOBAL | 6.5492 / 6.549187 | 6.5926 / 6.592585 |
+| SCAP | 1.6066 / 1.606597 | 1.6125 / 1.612531 |
+| SKY | 17.4693 / 17.469273 | 17.5174 / 17.517426 |
+
+**ข้อมูลงบเทียบกับ Company Highlights บน set.or.th**
+
+| หุ้น | EPS 6M/2026 engine / SET | BVPS engine / SET | PE ณ ราคาเดียวกัน engine / SET |
+|---|---:|---:|---:|
+| GLOBAL | 0.319 / 0.31 | 4.655 / 4.64 | 14.19 / 14.44 |
+| SCAP | 0.129 / 0.13 | 1.73 / 1.73 | 7.88 / 7.88 |
+| SKY | 0.667 / 0.67 | 8.782 / 8.73 | 15.55 / 15.55 |
+
+**สิ่งที่ไม่ตรงและแก้แล้ว**
+
+- Dividend yield band ของ SKY ได้ fair value 1,533 บาท (ราคา 17.40) เพราะ 5 ปีมี yield ที่ไม่เป็นศูนย์แค่ 3 ไตรมาส (2.1%, 0.01%, 0.02%) ทำให้ median ~0 เกณฑ์นี้ไม่ได้เช็คจำนวนจุดขั้นต่ำเหมือน PE/PBV band → ตอนนี้ต้องมีอย่างน้อย `min_history_points` ไตรมาส
+- Dividend yield band ของ GLOBAL เป็น N/A ทั้งที่จ่ายปันผลทุกปี เพราะ thaifin แสดง yield เป็น 0 ในไตรมาสหลังจ่าย → ตอนนี้ใช้ yield ล่าสุดที่เป็นบวกใน 4 ไตรมาสล่าสุด
+- สูตร CDC ต่างจาก chart ราว 0.2% → เปลี่ยนเป็น close และ smoothing 1 (task 3.5)
+- เปิดแอปครั้งแรกกับ DB ใหม่บางครั้งได้ 500 `database is locked` → engine สร้าง schema ตอนเริ่มทำงาน
+
+**ข้อสังเกตที่ยังไม่แก้**
+
+- MoS = (fair value − ราคา) ÷ fair value ติดลบมากเกินจริงเมื่อ fair value ต่ำมาก เช่น CCET ต่ำสุด −341% ตรงตาม spec และไม่กระทบ median แต่อ่านแล้วตกใจ
+- หุ้นที่ควบรวมหรือปรับโครงสร้าง (เช่น GULF ต่ำสุด −70%) ทำให้ PE/PBV ย้อนหลังไม่มีความหมาย ยังไม่มีป้ายเตือน
+- กดรัน batch ระหว่างตลาดเปิดจะได้ราคาระหว่างวัน cron หลังตลาดปิดไม่มีปัญหานี้

@@ -61,14 +61,18 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
                 return None, "ข้อมูล PBV ย้อนหลังไม่พอ"
             return pbv.median() * with_bv["bvps"].iloc[-1], None
         if method == "dividend_yield_median":
-            yields = hist["dividend_yield"].dropna()
-            paid = yields[yields > 0]
+            paid = hist["dividend_yield"][hist["dividend_yield"] > 0]
             if paid.empty:
                 return None, "ไม่มีปันผลในช่วง 5 ปี"
-            if yields.iloc[-1] <= 0:
-                return None, "ไม่ได้จ่ายปันผลล่าสุด"
+            # a couple of stray tiny yields would make the median ~0 and the fair value explode
+            if len(paid) < cfg.min_history_points:
+                return None, f"มีปันผลแค่ {len(paid)} ไตรมาสในช่วง 5 ปี"
+            # thaifin often shows 0 in the quarters after the payout, so look back a full year
+            recent = paid[paid.index.isin(hist.index[-4:])]
+            if recent.empty:
+                return None, "ไม่ได้จ่ายปันผลใน 4 ไตรมาสล่าสุด"
             # thaifin has no DPS; yield × that quarter's close recovers it
-            dps = yields.iloc[-1] * hist.loc[yields.index[-1], "close"]
+            dps = recent.iloc[-1] * hist.loc[recent.index[-1], "close"]
             return dps / paid.median(), None
         raise ValueError(method)
 

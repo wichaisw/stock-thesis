@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 from collections.abc import Callable, Iterator
 from datetime import date
@@ -132,4 +133,4 @@ def create_app(
     return app
 
 
-app = create_app()
+app = create_app(os.environ.get("SHORTLIST_DB", db.DEFAULT_PATH))

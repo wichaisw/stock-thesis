@@ -40,7 +40,7 @@
 
 ## 7. Web
 
-- [ ] 7.1 สร้าง `web/` ด้วย Next.js App Router, TypeScript, Tailwind ผ่าน `bun` และตั้งค่า `ENGINE_URL` ตรวจว่า `bun run build` ผ่าน
+- [x] 7.1 สร้าง `web/` ด้วย Next.js App Router, TypeScript, Tailwind ผ่าน `bun` และตั้งค่า `ENGINE_URL` ตรวจว่า `bun run build` ผ่าน
 - [ ] 7.2 ทำหน้า candidate list ที่มีคอลัมน์ครบตาม spec, วันที่ของข้อมูล, ปุ่มรัน batch พร้อมสถานะ, ข้อความเมื่อยังไม่มีข้อมูล และจำนวนหุ้นที่ fail ที่กดเปิดดูรายชื่อพร้อม icon เตือนและเหตุผลได้ ตรวจด้วยการเปิดหน้าเว็บขณะ engine รันอยู่ ทั้งก่อนและหลังมี run สำเร็จ และทั้งกรณีที่มีและไม่มีหุ้น fail
 - [ ] 7.3 ทำหน้ารายละเอียดหุ้น (ผลแต่ละ gate พร้อมค่าจริงและเกณฑ์, fair value panel, CDC, RRR, catalyst hints, event calendar, ฟอร์มเพิ่มและลบ event manual) และช่องค้นหา symbol ที่แสดง icon เตือนพร้อมเหตุผลเมื่อชี้ที่หุ้นที่ fail ตรวจด้วยการเปิดหุ้นที่อยู่ใน list, หุ้นที่ไม่ผ่าน gate และหุ้นที่ fail
 

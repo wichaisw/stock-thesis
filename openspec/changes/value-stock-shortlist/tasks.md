@@ -27,7 +27,7 @@
 - [x] 4.3 ทำ `core/catalyst` (hints ตาม sector, กำหนดส่งงบที่ประมาณ, วัน index review, รวม event manual ภายใน 6 เดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `catalyst-watch` รวมถึงกรณีวันที่ 14 ต.ค. 2026
 - [x] 4.4 ทำ `core/risk_reward` (entry, stop, target, RRR, ป้ายเตือน, N/A, reward ต่อเดือน) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `risk-reward`
 - [x] 4.5 ทำ `core/candidates` (เงื่อนไขเข้า list, การเรียงลำดับ) ตรวจด้วย test ที่ครอบคลุมทุก scenario ใน spec `candidate-list` รวมถึงกรณีตั้ง config ให้รับทุก CDC state
-- [ ] 4.6 เพิ่ม `equity` ในรูปแบบข้อมูลงบกลางและ adapter thaifin แล้วเปลี่ยนเกณฑ์ ROE ใน `core/quality` เป็น ROE TTM ตรวจด้วย test ของ scenario ไตรมาสกำไรสูงผิดปกติและข้อมูล ROE ไม่ครบใน spec `quality-gate`
+- [x] 4.6 เพิ่ม `equity` ในรูปแบบข้อมูลงบกลางและ adapter thaifin แล้วเปลี่ยนเกณฑ์ ROE ใน `core/quality` เป็น ROE TTM ตรวจด้วย test ของ scenario ไตรมาสกำไรสูงผิดปกติและข้อมูล ROE ไม่ครบใน spec `quality-gate`
 - [ ] 4.7 เปลี่ยนทุก band ใน `core/fair_value` เป็น median (PE band มี median − 1SD) และตัด PE ที่เกินเกณฑ์ใน config (default 100) ตรวจด้วย test ของ scenario PE ย้อนหลังมีค่าผิดปกติใน spec `fair-value-panel`
 
 ## 5. Batch

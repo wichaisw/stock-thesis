@@ -14,7 +14,7 @@ def quarters(n: int = 12, **overrides) -> pd.DataFrame:
             "eps": [1.0] * n,
             "net_profit": [1e9] * n,
             "net_profit_yoy": [0.05] * n,
-            "roe": [0.14] * n,
+            "equity": [1e9 * 4 / 0.14] * n,  # ROE TTM 14%
             "de": [0.8] * n,
             "ocf": [5e8] * n,
             "npm": [0.10] * n,
@@ -51,6 +51,22 @@ def test_healthy_company_passes():
     r = quality.evaluate(quarters(), "Commerce", CFG.quality)
     assert r["passed"]
     assert all(c["passed"] for c in r["checks"])
+
+
+def test_one_strong_quarter_does_not_pass_roe():
+    # latest quarter annualizes to 14%, but TTM is 8%
+    r = quality.evaluate(quarters(net_profit=[1.5e9, 1.5e9, 1.5e9, 3.5e9], equity=[1e11] * 4), "Commerce", CFG.quality)
+    roe = check(r, "roe")
+    assert roe["passed"] is False
+    assert roe["value"] == 0.08
+    assert "ROE TTM 8.0%" in roe["reason"]
+
+
+def test_missing_roe_input_fails_without_guessing():
+    r = quality.evaluate(quarters(equity=[np.nan]), "Commerce", CFG.quality)
+    roe = check(r, "roe")
+    assert roe["passed"] is False and roe["value"] is None
+    assert "ไม่ครบ" in roe["reason"]
 
 
 def test_high_de_fails_with_value():

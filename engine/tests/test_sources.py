@@ -39,6 +39,7 @@ def test_quarterly_uses_latest_quarter_with_eps():
             "net_profit": [9e9, 11e9, np.nan, np.nan],
             "net_profit_yoy": [-12.0, 8.0, np.nan, np.nan],
             "roe": [14.0, 15.0, np.nan, np.nan],
+            "equity": [1e11, 1.1e11, np.nan, np.nan],
             "debt_to_equity": [0.8, 0.8, np.nan, np.nan],
             "operating_activities": [5e9, 6e9, np.nan, np.nan],
             "npm": [3.0, 3.5, np.nan, np.nan],
@@ -52,7 +53,8 @@ def test_quarterly_uses_latest_quarter_with_eps():
     df = to_quarterly(raw)
     assert df.index[-1] == "2026Q2"
     assert df["eps"].iloc[-1] == 1.1
-    assert df["roe"].iloc[-1] == 0.15
+    assert df["equity"].iloc[-1] == 1.1e11
+    assert "roe" not in df.columns
     assert df["net_profit_yoy"].iloc[0] == -0.12
 
 

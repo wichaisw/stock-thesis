@@ -83,6 +83,10 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    # financials_quarterly is rewritten every run, so a column change just recreates it
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(financials_quarterly)")]
+    if cols and cols[2:] != QUARTERLY_COLUMNS:
+        conn.execute("DROP TABLE financials_quarterly")
     conn.executescript(SCHEMA)
     return conn
 

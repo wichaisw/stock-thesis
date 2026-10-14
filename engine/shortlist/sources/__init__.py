@@ -16,7 +16,7 @@ QUARTERLY_COLUMNS = [
     "eps",
     "net_profit",
     "net_profit_yoy",
-    "roe",
+    "equity",
     "de",
     "ocf",
     "npm",

@@ -7,7 +7,7 @@ FIELD_MAP = {
     "earning_per_share": "eps",
     "net_profit": "net_profit",
     "net_profit_yoy": "net_profit_yoy",
-    "roe": "roe",
+    "equity": "equity",
     "debt_to_equity": "de",
     "operating_activities": "ocf",
     "npm": "npm",
@@ -15,7 +15,7 @@ FIELD_MAP = {
     "dividend_yield": "dividend_yield",
     "close": "close",
 }
-PERCENT_FIELDS = ["net_profit_yoy", "roe", "npm", "dividend_yield"]
+PERCENT_FIELDS = ["net_profit_yoy", "npm", "dividend_yield"]
 
 
 def to_quarterly(raw: pd.DataFrame) -> pd.DataFrame:

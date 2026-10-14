@@ -40,14 +40,16 @@ def evaluate(quarterly: pd.DataFrame, sector: str, cfg: Quality) -> dict:
     last = reported.iloc[-1]
     is_financial = sector in cfg.financial_sectors
 
-    roe = num(last["roe"], 4)
+    roe = roe_ttm(reported)
     checks.append(
         _check(
             "roe",
             roe is not None and roe >= cfg.min_roe,
             roe,
-            f"≥ {cfg.min_roe:.0%}",
-            "ไม่มีค่า ROE ไตรมาสล่าสุด" if roe is None else f"ROE ไตรมาสล่าสุด {roe:.1%}",
+            f"ROE TTM ≥ {cfg.min_roe:.0%}",
+            "ข้อมูล ROE ไม่ครบ (ต้องมีกำไรสุทธิและส่วนผู้ถือหุ้นครบ 4 ไตรมาส)"
+            if roe is None
+            else f"ROE TTM {roe:.1%}",
         )
     )
 
@@ -94,6 +96,18 @@ def evaluate(quarterly: pd.DataFrame, sector: str, cfg: Quality) -> dict:
         "checks": checks,
         "inflection": inflection(reported),
     }
+
+
+def roe_ttm(reported: pd.DataFrame) -> float | None:
+    """Net profit of the last 4 quarters over their average equity.
+
+    thaifin's own ROE annualizes a single quarter, so one unusual quarter could pass the gate.
+    """
+    last4 = reported.tail(4)
+    if len(last4) < 4 or last4[["net_profit", "equity"]].isna().any().any():
+        return None
+    equity = last4["equity"].mean()
+    return num(last4["net_profit"].sum() / equity, 4) if equity > 0 else None
 
 
 def inflection(reported: pd.DataFrame) -> dict:

@@ -62,15 +62,22 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, toda
     liquid = [sym for sym, r in liquidity.items() if r["passed"]]
     log(f"ผ่าน liquidity {len(liquid)} ตัว ดึงงบ...")
     quarterly: dict[str, pd.DataFrame] = {}
+    caps: dict[str, pd.DataFrame] = {}
     for sym in liquid:
         try:
             quarterly[sym] = fin_src.fetch_quarterly(sym)
         except Exception as e:
             failures[sym] = f"ดึงงบไม่ได้: {type(e).__name__}: {e}"
+            continue
+        try:
+            caps[sym] = prices_src.fetch_market_caps(sym)
+        except Exception as e:
+            del quarterly[sym]
+            failures[sym] = f"ดึง market cap ไม่ได้: {type(e).__name__}: {e}"
 
     by_symbol = {s.symbol: s for s in stocks}
     pe_by_symbol = {
-        sym: (by_symbol[sym].sector, fair_value.current_pe(q, float(prices[sym]["close"].iloc[-1])))
+        sym: (by_symbol[sym].sector, fair_value.current_pe(q, float(prices[sym]["close"].iloc[-1]), caps[sym]))
         for sym, q in quarterly.items()
     }
     next_deadline = catalyst.next_statement_deadline(today, cfg.catalyst)
@@ -81,7 +88,7 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, toda
             continue
         try:
             evaluations.append(
-                evaluate_stock(s, prices[s.symbol], quarterly.get(s.symbol), liquidity[s.symbol],
+                evaluate_stock(s, prices[s.symbol], quarterly.get(s.symbol), caps.get(s.symbol), liquidity[s.symbol],
                                pe_by_symbol, today, next_deadline, cfg)
             )
         except Exception as e:
@@ -105,6 +112,7 @@ def evaluate_stock(
     info: StockInfo,
     prices: pd.DataFrame,
     quarterly: pd.DataFrame | None,
+    caps: pd.DataFrame | None,
     liquidity: dict,
     pe_by_symbol: dict[str, tuple[str, float | None]],
     today: date,
@@ -131,7 +139,7 @@ def evaluate_stock(
     # stocks below the liquidity filter have no statements fetched (design D4)
     if quarterly is not None:
         peers = fair_value.peers_for(info.symbol, info.sector, pe_by_symbol)
-        fv = fair_value.evaluate(quarterly, price, peers, cfg.fair_value)
+        fv = fair_value.evaluate(quarterly, price, peers, cfg.fair_value, caps)
         ev["quality"] = quality.evaluate(quarterly, info.sector, cfg.quality)
         ev["fair_value"] = fv
         ev["risk_reward"] = risk_reward.evaluate(

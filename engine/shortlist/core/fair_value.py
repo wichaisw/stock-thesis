@@ -19,47 +19,65 @@ def eps_ttm(quarterly: pd.DataFrame) -> float | None:
     return float(eps.tail(4).sum()) if len(eps) >= 4 else None
 
 
-def current_pe(quarterly: pd.DataFrame, price: float) -> float | None:
-    """PE on today's price; None when EPS TTM is not positive (PE is meaningless then)."""
-    ttm = eps_ttm(quarterly)
-    return price / ttm if ttm and ttm > 0 else None
+def net_profit_ttm(quarterly: pd.DataFrame) -> float | None:
+    profit = quarterly["net_profit"].dropna()
+    return float(profit.tail(4).sum()) if len(profit) >= 4 else None
+
+
+def latest_shares(caps: pd.DataFrame) -> float | None:
+    shares = caps["shares"].dropna()
+    return float(shares.iloc[-1]) if len(shares) else None
+
+
+def current_pe(quarterly: pd.DataFrame, price: float, caps: pd.DataFrame) -> float | None:
+    """Company-level PE on today's price; None when profit TTM is not positive (PE is meaningless then)."""
+    ttm, shares = net_profit_ttm(quarterly), latest_shares(caps)
+    return price * shares / ttm if ttm and ttm > 0 and shares else None
 
 
 def peers_for(symbol: str, sector: str, pe_by_symbol: dict[str, tuple[str, float | None]]) -> list[float]:
     return [pe for s, (sec, pe) in pe_by_symbol.items() if sec == sector and s != symbol and pe is not None]
 
 
-def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: FairValue) -> dict:
-    reported = quarterly[quarterly["eps"].notna()]
+def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: FairValue, caps: pd.DataFrame) -> dict:
+    """PE/PBV bands are company-level (market cap ÷ profit or equity) and converted back with today's
+    share count, so splits, capital raises and the source's dividend-adjusted prices don't skew them."""
+    reported = quarterly[quarterly["eps"].notna()].join(caps["mkt_cap"])
     hist = reported.tail(cfg.lookback_quarters)
-    ttm = eps_ttm(reported)
-    pe_hist = (reported["close"] / reported["eps"].rolling(4).sum()).tail(cfg.lookback_quarters)
-    # a near-zero EPS TTM gives a PE in the hundreds, which would blow up the SD
+    ttm = net_profit_ttm(reported)
+    shares = latest_shares(caps)
+    has_cap = hist["mkt_cap"].notna()
+    pe_hist = (reported["mkt_cap"] / reported["net_profit"].rolling(4).sum()).tail(cfg.lookback_quarters)
+    # a near-zero profit TTM gives a PE in the hundreds, which would blow up the SD
     pe_hist = pe_hist[(pe_hist > 0) & (pe_hist <= cfg.max_pe)]
 
     def fair(method: str) -> tuple[float | None, str | None]:
+        if method in ("pe_median", "pe_minus_1sd", "pbv_median") and not has_cap.any():
+            return None, "ไม่มี market cap ย้อนหลัง"
+        if method in ("pe_median", "pe_minus_1sd", "peer_pe", "pbv_median") and not shares:
+            return None, "ไม่มีจำนวนหุ้นล่าสุด"
         if method in ("pe_median", "pe_minus_1sd", "peer_pe"):
             if ttm is None:
-                return None, "งบไม่ครบ 4 ไตรมาสสำหรับ EPS TTM"
+                return None, "งบไม่ครบ 4 ไตรมาสสำหรับกำไร TTM"
             if ttm <= 0:
-                return None, "EPS TTM ติดลบ"
+                return None, "กำไร 4 ไตรมาสติดลบ"
         if method in ("pe_median", "pe_minus_1sd"):
             if len(pe_hist) < cfg.min_history_points:
                 return None, "ข้อมูล PE ย้อนหลังไม่พอ"
             multiple = pe_hist.median() - (pe_hist.std() if method == "pe_minus_1sd" else 0)
             if multiple <= 0:
                 return None, "PE median − 1SD ไม่เป็นบวก"
-            return multiple * ttm, None
+            return multiple * ttm / shares, None
         if method == "peer_pe":
             if len(peer_pes) < cfg.min_peers:
                 return None, f"peer ใน sector มี {len(peer_pes)} ตัว น้อยกว่า {cfg.min_peers}"
-            return median(peer_pes) * ttm, None
+            return median(peer_pes) * ttm / shares, None
         if method == "pbv_median":
-            with_bv = hist[hist["bvps"] > 0]
-            pbv = with_bv["close"] / with_bv["bvps"]
-            if len(pbv.dropna()) < cfg.min_history_points:
+            with_equity = hist[hist["equity"] > 0]
+            pbv = (with_equity["mkt_cap"] / with_equity["equity"]).dropna()
+            if len(pbv) < cfg.min_history_points:
                 return None, "ข้อมูล PBV ย้อนหลังไม่พอ"
-            return pbv.median() * with_bv["bvps"].iloc[-1], None
+            return pbv.median() * with_equity["equity"].iloc[-1] / shares, None
         if method == "dividend_yield_median":
             paid = hist["dividend_yield"][hist["dividend_yield"] > 0]
             if paid.empty:
@@ -91,10 +109,21 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
         )
     return {
         "price": price,
-        "eps_ttm": num(ttm, 4),
+        "eps_ttm": num(eps_ttm(reported), 4),
         "items": items,
         "summary": summarize(items),
         "structure_change": structure_change(hist, cfg.structure_change_threshold),
+        "history_gap": history_gap(has_cap),
+    }
+
+
+def history_gap(has_cap: pd.Series) -> dict:
+    """Quarters without a market cap (no share count before a rename or merger) are skipped in the bands."""
+    if has_cap.all():
+        return {"flag": False, "reason": None}
+    return {
+        "flag": True,
+        "reason": f"มี market cap ย้อนหลัง {int(has_cap.sum())}/{len(has_cap)} ไตรมาส band คิดจากเท่าที่มี",
     }
 
 

@@ -81,6 +81,8 @@ export type Evaluation = {
     items: FairValueItem[];
     summary: FairValueSummary;
     structure_change: { flag: boolean; reason: string | null };
+    // absent in runs saved before market caps came from yfinance
+    history_gap?: { flag: boolean; reason: string | null };
   } | null;
   cdc: {
     state: CdcState | null;

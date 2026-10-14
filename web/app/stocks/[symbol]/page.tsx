@@ -196,7 +196,7 @@ function Gates({ ev }: { ev: Evaluation }) {
 
 function FairValuePanel({ ev }: { ev: Evaluation }) {
   if (!ev.fair_value) return null;
-  const { items, summary, eps_ttm, structure_change } = ev.fair_value;
+  const { items, summary, eps_ttm, structure_change, history_gap } = ev.fair_value;
   return (
     <Section title="Fair value panel">
       <p className="mb-2 text-sm">
@@ -206,6 +206,11 @@ function FairValuePanel({ ev }: { ev: Evaluation }) {
       {structure_change.flag && (
         <p className="mb-2 text-sm">
           <Tag tone="red">โครงสร้างทุนเปลี่ยน</Tag> {structure_change.reason}
+        </p>
+      )}
+      {history_gap?.flag && (
+        <p className="mb-2 text-sm">
+          <Tag>ข้อมูลย้อนหลังไม่ครบ</Tag> {history_gap.reason}
         </p>
       )}
       <table className="w-full text-sm">

@@ -136,6 +136,9 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                       โครงสร้างทุนเปลี่ยน
                     </Tag>
                   )}
+                  {c.fair_value!.history_gap?.flag && (
+                    <Tag title={c.fair_value!.history_gap.reason ?? undefined}>ข้อมูลย้อนหลังไม่ครบ</Tag>
+                  )}
                 </td>
               </tr>
             );

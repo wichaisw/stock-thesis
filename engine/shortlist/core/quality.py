@@ -92,7 +92,8 @@ def evaluate(quarterly: pd.DataFrame, sector: str, cfg: Quality) -> dict:
     )
 
     return {
-        "passed": all(c["passed"] is not False for c in checks),
+        # min_quarters already passed above; skipped checks (None) do not count as failed
+        "passed": sum(c["passed"] is False for c in checks) <= cfg.max_failed_checks,
         "checks": checks,
         "inflection": inflection(reported),
     }

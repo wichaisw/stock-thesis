@@ -69,9 +69,9 @@ def test_missing_roe_input_fails_without_guessing():
     assert "ไม่ครบ" in roe["reason"]
 
 
-def test_high_de_fails_with_value():
+def test_one_failed_check_still_passes_with_value():
     r = quality.evaluate(quarters(de=[2.3]), "Commerce", CFG.quality)
-    assert not r["passed"]
+    assert r["passed"]
     de = check(r, "de")
     assert de["passed"] is False and de["value"] == 2.3
 
@@ -82,7 +82,6 @@ def test_missing_ocf_counts_as_not_positive():
 
     r = quality.evaluate(quarters(ocf=[-1.0, np.nan]), "Commerce", CFG.quality)
     assert check(r, "ocf")["passed"] is False
-    assert not r["passed"]
 
 
 def test_loss_quarter_fails():
@@ -95,6 +94,30 @@ def test_bank_skips_de():
     assert r["passed"]
     de = check(r, "de")
     assert de["passed"] is None and "หุ้นการเงิน" in de["reason"]
+
+
+def test_more_failures_than_allowed_fails_listing_each():
+    r = quality.evaluate(quarters(equity=[1e11] * 4, de=[2.3], ocf=[-1.0, -1.0]), "Commerce", CFG.quality)
+    assert CFG.quality.max_failed_checks == 2
+    assert not r["passed"]
+    assert {c["name"] for c in r["checks"] if c["passed"] is False} == {"roe", "de", "ocf"}
+    assert check(r, "de")["value"] == 2.3
+
+
+def test_zero_allowed_failures_keeps_old_behaviour():
+    strict = CFG.quality.model_copy(update={"max_failed_checks": 0})
+    assert not quality.evaluate(quarters(de=[2.3]), "Commerce", strict)["passed"]
+
+
+def test_too_few_quarters_fails_regardless_of_allowance():
+    loose = CFG.quality.model_copy(update={"max_failed_checks": 4})
+    assert not quality.evaluate(quarters(5), "Commerce", loose)["passed"]
+
+
+def test_bank_failing_roe_passes_without_counting_skipped():
+    r = quality.evaluate(quarters(equity=[1e11] * 4), "Banking", CFG.quality)
+    assert r["passed"]
+    assert [c["name"] for c in r["checks"] if c["passed"] is False] == ["roe"]
 
 
 def test_profit_turning_positive_flags_inflection():

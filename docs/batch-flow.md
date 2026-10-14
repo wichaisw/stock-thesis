@@ -50,7 +50,7 @@ flowchart TD
         direction TB
         E1["CDC ActionZone<br/>EMA 12/26 on close<br/>state + ETA to cross"]
         E2{"has statements?<br/>(passed liquidity)"}
-        E3["Quality gate<br/>ROE, D/E, OCF, no losses,<br/>≥ 12 quarters"]
+        E3["Quality gate<br/>≥ 12 quarters required;<br/>ROE, D/E, OCF, no losses:<br/>at most max_failed_checks fail"]
         E4["Fair value panel<br/>PE median, PE −1SD, PBV,<br/>dividend yield, peer PE<br/>→ median MoS"]
         E5["Risk/reward<br/>stop = swing low − 3%<br/>target = fair value, RRR"]
         E6["Catalyst hints by sector"]

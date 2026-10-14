@@ -51,6 +51,11 @@ def test_ocf_positive_cannot_exceed_window():
     assert error_locs({"quality.ocf_window": 4, "quality.ocf_min_positive": 5}) == {"quality.ocf_min_positive"}
 
 
+def test_max_failed_checks_is_0_to_4():
+    assert load_config().quality.max_failed_checks == 2
+    assert error_locs({"quality.max_failed_checks": 5}) == {"quality.max_failed_checks"}
+
+
 @pytest.mark.parametrize("key", ["fair_value.enabled", "candidates.accepted_states"])
 def test_choice_lists_need_at_least_one(key):
     assert error_locs({key: []}) == {key}

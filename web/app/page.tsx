@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { FailIcon, StaleNotice, StateBadge, Tag } from "@/app/badges";
+import { FailIcon, StaleNotice, StateBadge, Tag, Tooltip } from "@/app/badges";
 import { RunButton } from "@/app/run-button";
 import { engine, type Evaluation, type Failure, type Run } from "@/lib/engine";
 import { baht, pct, thaiDate, thaiDateTime } from "@/lib/format";
+import { gateRows, gateTally } from "@/lib/gates";
 
 const secondaryButton =
   "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
@@ -101,6 +102,7 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
             <th className={th}>#</th>
             <th className={th}>Symbol</th>
             <th className={th}>Sector</th>
+            <th className={th}>Gates</th>
             <th className={`${th} text-right`}>ราคา</th>
             <th className={th}>CDC</th>
             <th className={`${th} text-right`}>ETA (วัน)</th>
@@ -114,8 +116,10 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
           {candidates.map((c) => {
             const fv = c.fair_value!.summary;
             const rr = c.risk_reward!;
+            // the threshold text is not shown here, only the tally and failed reasons
+            const gates = gateTally(gateRows(c, ""));
             return (
-              <tr key={c.symbol} className="border-t border-zinc-200 dark:border-zinc-800">
+              <tr key={c.symbol} className="relative border-t border-zinc-200 dark:border-zinc-800">
                 <td className="px-3 py-2 text-zinc-500">{c.candidate_rank}</td>
                 <td className="px-3 py-2">
                   <Link href={`/stocks/${c.symbol}`} className="font-semibold underline-offset-2 hover:underline">
@@ -123,6 +127,16 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                   </Link>
                 </td>
                 <td className="px-3 py-2">{c.sector}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {gates.passed}/{gates.evaluated}
+                  {gates.failed.length > 0 && (
+                    <Tooltip
+                      id={`tip-gates-${c.symbol}`}
+                      text={`ไม่ผ่าน: ${gates.failed.map((g) => g.reason).join(", ")}`}
+                      label={`เกณฑ์ที่ไม่ผ่านของ ${c.symbol}`}
+                    />
+                  )}
+                </td>
                 <td className="px-3 py-2 text-right">{baht(c.price)}</td>
                 <td className="px-3 py-2">
                   <StateBadge state={c.cdc.state} />

@@ -42,5 +42,6 @@ export const UNIT_LABEL: Record<SettingUnit, string> = {
   months: "เดือน",
   times: "เท่า",
   stocks: "ตัว",
+  checks: "เกณฑ์",
   choice: "",
 };

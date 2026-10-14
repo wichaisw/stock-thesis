@@ -132,7 +132,7 @@ export type StockDetail = {
 
 export type Failure = { symbol: string; name: string | null; reason: string };
 
-export type SettingUnit = "percent" | "million_baht" | "days" | "quarters" | "months" | "times" | "stocks" | "choice";
+export type SettingUnit = "percent" | "million_baht" | "days" | "quarters" | "months" | "times" | "stocks" | "checks" | "choice";
 
 export type SettingField = {
   key: string;

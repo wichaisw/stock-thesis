@@ -1,5 +1,6 @@
-import type { Check, Evaluation, StockDetail } from "@/lib/engine";
+import type { Evaluation, StockDetail } from "@/lib/engine";
 import { pct } from "@/lib/format";
+import { gateRows } from "@/lib/gates";
 
 // English twin of FAIR_VALUE_HELP / MOS_HELP in app/stocks/[symbol]/page.tsx: change both together
 export const METHOD_NOTES_EN: Record<string, string> = {
@@ -55,16 +56,7 @@ function verdict(passed: boolean | null): string {
 }
 
 function gates(ev: Evaluation): string[] {
-  const rows: Check[] = [
-    {
-      name: "liquidity",
-      passed: ev.liquidity.passed,
-      value: ev.liquidity.value,
-      threshold: `≥ ${ev.liquidity.threshold / 1e6} million THB/day`,
-      reason: ev.liquidity.reason,
-    },
-    ...(ev.quality?.checks ?? []),
-  ];
+  const rows = gateRows(ev, `≥ ${ev.liquidity.threshold / 1e6} million THB/day`);
   const out = [
     `Quality gate: ${ev.quality ? verdict(ev.quality.passed) : "not evaluated (statements are fetched only after the liquidity gate passes)"}`,
     "",

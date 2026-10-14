@@ -12,6 +12,7 @@ quality:
   ocf_window: 4
   ocf_min_positive: 3
   no_loss_window: 4
+  max_failed_checks: 2
   # sector ตาม thaifin (หุ้น mai ใช้ industry แทนเพราะ sector เป็น "-")
   financial_sectors:
     - Banking

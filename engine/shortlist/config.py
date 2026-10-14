@@ -90,6 +90,12 @@ class Quality(Strict):
         "หุ้นที่ขาดทุนแม้ไตรมาสเดียวในช่วงนี้ไม่ผ่าน gate เพิ่มค่าจะเหลือหุ้นที่กำไรสม่ำเสมอนานกว่า ลดค่าจะได้หุ้นที่เพิ่งพ้นช่วงขาดทุนมาด้วย",
         "quarters", ge=1, le=20,
     )
+    max_failed_checks: int = editable(
+        "จำนวนเกณฑ์ที่ไม่ผ่านได้สูงสุด",
+        "ROE, D/E, OCF และไม่ขาดทุน ไม่ผ่านรวมกันได้ไม่เกินเท่านี้ (liquidity และจำนวนไตรมาสต้องผ่านเสมอ เกณฑ์ที่ข้ามไม่นับ) "
+        "เพิ่มค่าจะได้ candidates มากขึ้นแต่รวมหุ้นที่พื้นฐานอ่อนกว่า 0 คือต้องผ่านทุกเกณฑ์",
+        "checks", ge=0, le=4,
+    )
     financial_sectors: list[str]
 
     # cross-field checks read the earlier field from info.data so the error lands on this field

@@ -5,8 +5,9 @@ import { deleteEvent } from "@/app/actions";
 import { FailIcon, StateBadge, Tag, Tooltip } from "@/app/badges";
 import { CopyButton } from "@/app/stocks/[symbol]/copy-button";
 import { EventForm } from "@/app/stocks/[symbol]/event-form";
-import { engine, EngineError, type Check, type Evaluation, type StockDetail } from "@/lib/engine";
+import { engine, EngineError, type Evaluation, type StockDetail } from "@/lib/engine";
 import { baht, pct, thaiDate } from "@/lib/format";
+import { gateRows, gateTally } from "@/lib/gates";
 import { toLlmMarkdown } from "@/lib/llm-export";
 
 // METHOD_NOTES_EN in lib/llm-export.ts is the English twin of these two: change both together
@@ -158,18 +159,10 @@ function Verdict({ passed }: { passed: boolean | null }) {
 }
 
 function Gates({ ev }: { ev: Evaluation }) {
-  const rows: Check[] = [
-    {
-      name: "liquidity",
-      passed: ev.liquidity.passed,
-      value: ev.liquidity.value,
-      threshold: `≥ ${(ev.liquidity.threshold / 1e6).toLocaleString()} ลบ./วัน`,
-      reason: ev.liquidity.reason,
-    },
-    ...(ev.quality?.checks ?? []),
-  ];
+  const rows = gateRows(ev, `≥ ${(ev.liquidity.threshold / 1e6).toLocaleString()} ลบ./วัน`);
+  const tally = gateTally(rows);
   return (
-    <Section title={`Gates ${ev.quality ? (ev.quality.passed ? "(ผ่าน quality gate)" : "(ไม่ผ่าน quality gate)") : ""}`}>
+    <Section title={`Gates ผ่าน ${tally.passed}/${tally.evaluated} ${ev.quality ? (ev.quality.passed ? "(ผ่าน quality gate)" : "(ไม่ผ่าน quality gate)") : ""}`}>
       <table className="w-full text-sm">
         <thead className="text-left text-zinc-500">
           <tr>

@@ -50,11 +50,26 @@
 ## Impact
 
 - **Stack**: frontend เป็น Next.js (TypeScript), backend เป็น Python เพราะ yfinance และ thaifin เป็น Python library (thaifin เวอร์ชันล่าสุดต้องใช้ Python ≥ 3.11)
-- **ผู้ใช้**: ตอนนี้ใช้คนเดียวแบบ local ถ้าใช้ได้ผลจะ deploy frontend/backend ขึ้น Vercel ซึ่งกระทบ design ดังนี้
+- **ผู้ใช้และลำดับการ deploy**: ใช้คนเดียว ทำและใช้งานบน **local ก่อน** การ deploy ขึ้น Vercel เป็น**ขั้นสุดท้าย** หลังจากใช้งานจริงแล้วได้ผล ตอนนั้นต้องคิดเรื่องเหล่านี้
   - batch ทั้งตลาดใช้ราว 3 นาที ต้องแบ่ง batch ให้พอดี time limit ของ Vercel Cron / serverless function
   - ต้องใช้ hosted DB แทนไฟล์ local
-  - IP ของ Vercel อาจถูกบล็อกถ้าดึงข้อมูลแบบ scrape
+  - IP ของ Vercel อาจถูกบล็อกจาก Yahoo/Finnomena ทางเลือกคือรัน data batch นอก Vercel (เครื่อง local หรือ GitHub Action) แล้วเขียนผลลง hosted DB ให้ Vercel อ่านอย่างเดียว
 - **ข้อมูล**: ใช้ yfinance (`.BK`) สำหรับ OHLCV และ thaifin สำหรับงบการเงินรายไตรมาส ทั้งสองเป็น unofficial จึงต้องแยก data source ไว้หลัง interface เพื่อเปลี่ยนเป็น SETSMART API ได้ถ้า thaifin พัง
+- **ข้อจำกัดของ API** (ไม่มี SLA หรือ rate limit ที่ประกาศไว้ทั้งคู่)
+  - **yfinance** ([docs](https://ranaroussi.github.io/yfinance), [GitHub](https://github.com/ranaroussi/yfinance))
+    - ไม่ได้เป็นของ Yahoo และ README ระบุว่า "The Yahoo! finance API is intended for personal use only" ([Yahoo terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html))
+    - rate limit ไม่ได้ประกาศไว้ ถ้าเกินจะได้ `YFRateLimitError`
+    - Yahoo มักจำกัดหรือบล็อก IP ของ datacenter
+    - พังได้เมื่อ Yahoo เปลี่ยน endpoint ภายใน
+    - แถวล่าสุดอาจมี `Close = NaN` และบางหุ้นไม่มีข้อมูล
+  - **thaifin** ([docs](https://circleoncircles.github.io/thaifin/thaifin.html), [PyPI](https://pypi.org/project/thaifin/))
+    - ไม่มีข้อมูลของตัวเอง งบการเงินดึงจาก API ภายในของ Finnomena (`finnomena.com/market-info/api/public`) ส่วนรายชื่อหุ้นและ sector ดึงจาก GitHub repo `lumduan/thai-securities-data` ที่มีผู้ดูแลคนเดียว
+    - ยังไม่ได้ตรวจ terms ของ Finnomena ว่าอนุญาตให้ดึงอัตโนมัติหรือไม่ ต้องเช็คก่อนเปิดให้คนอื่นใช้
+    - retry 3 ครั้งแบบ backoff 4–10 วินาที และ cache ใน memory 24 ชม. ซึ่งไม่ข้ามรอบ serverless จึงต้องเก็บข้อมูลลง DB เอง
+    - error ทุกแบบถูกห่อเป็น `ValueError` แยก "ไม่พบ" กับ "โดนบล็อก" ไม่ได้
+    - ต้องใช้ Python ≥ 3.11 ถ้าใช้ Python เก่ากว่าจะลง 0.2.2 ซึ่ง API ต่างกันโดยไม่เตือน
+    - มีผู้ดูแลคนเดียว release ล่าสุด ก.ค. 2025
+  - **ผลต่อแผน**: ใช้คนเดียวบน local ตรงกับเจตนาของทั้งสอง library ถ้าจะเปิดให้หลายคนใช้หรือใช้เชิงพาณิชย์ ต้องย้ายไป SETSMART ผ่าน data source interface
 - **ผล POC** (ทดสอบ PTT, CPALL, KBANK, BH, หุ้น mai และสุ่ม 40 ตัว):
   - A1 ✅ EPS, BVPS, dividend yield รายไตรมาสย้อนหลัง 5 ปีขึ้นไปสำหรับหุ้นใหญ่ และ thaifin มี PE/PBV รายไตรมาสให้ คำนวณ band ได้ตรงๆ ไม่มี DPS แต่คำนวณจาก yield × close ได้ บางไตรมาสมีช่องว่าง
   - A2 ✅ มี ROE, D/E, OCF (ROE น่าจะเป็นตัวเลขไตรมาสที่ annualize แล้ว ต้องเช็คต่อ)

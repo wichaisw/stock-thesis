@@ -1,5 +1,14 @@
 # Design
 
+## ผลลัพธ์ (15 ต.ค. 2026)
+
+D3 หยุดงานก่อนแก้ code: EPS ของ thaifin ตรง SET แค่ 19 จาก 37 ปีของ 10 หุ้น (SAWAD, TOP, CPF, CHO ไม่ตรงทุกปี) และ 43 ไตรมาสใน 22 หุ้นไม่ถูกปรับตาม split (เช่น DELTA ×10, RAM ×5) ขณะที่ `net_profit` ตรงกำไรส่วนของบริษัทใหญ่บน SET 33 จาก 37 ปี ผลต่างที่วัดไว้ใน Context ส่วนใหญ่จึงมาจาก EPS ไม่ใช่ `net_profit`
+- D1 (PE ต่อหุ้น) ไม่ทำ: จะทำให้ PE ผิดมากกว่าเดิม
+- แผนสำรองของ D1 (ตัดไตรมาสที่ `net_profit` ต่างจาก EPS × จำนวนหุ้น) ไม่ทำ: ตัดไตรมาสที่ถูกทิ้งเพราะฝั่งที่ผิดคือ EPS
+- D2, D4, D5 ไม่ได้ทำ ผู้ใช้เลือกคง PE ระดับบริษัทจาก `net_profit` ไว้ ผลตรวจอยู่ใน `engine/README.md`
+
+ส่วนที่เหลือของเอกสารนี้คือแผนเดิมก่อนตรวจ เก็บไว้เป็นประวัติ
+
 ## Context
 
 ดู proposal.md (Why) ตอนนี้ `fair_value.current_pe` และ `evaluate` คิด PE ระดับบริษัท: PE ย้อนหลัง = `mkt_cap` ÷ `net_profit` 4 ไตรมาส และ fair value = PE × `net_profit` 4 ไตรมาส ÷ จำนวนหุ้นล่าสุด (`latest_shares`) ส่วน `quarterly_market_cap` คิดราคาปิดสิ้นไตรมาสที่ปรับ split (`adjusted`) อยู่แล้วเพื่อหา dividend yield แต่ไม่ได้คืนค่านั้นออกมา batch ดึงราคาแค่ 1 ปี (`YahooPrices`) ส่วนราคา 5 ปีอยู่ใน `fetch_market_caps` เท่านั้น

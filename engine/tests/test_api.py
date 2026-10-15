@@ -32,6 +32,19 @@ def test_no_successful_run_yet(client):
     assert c.get("/stocks/AAA").status_code == 404
 
 
+def test_candidate_history_follows_the_run(client):
+    c, _ = client
+    assert c.get("/candidates/history").json() == []
+    run_id = c.post("/runs").json()["run"]["id"]
+    body = c.get("/candidates").json()
+    day = body["run"]["price_date"]
+    assert c.get("/candidates/history").json() == [{"price_date": day, "count": len(body["candidates"])}]
+    h = c.get(f"/candidates/history/{day}").json()
+    assert h["candidates"] == body["candidates"] and h["price_date"] == day
+    assert h["run_id"] == run_id
+    assert c.get("/candidates/history/2000-01-01").status_code == 404
+
+
 def test_run_then_read_results(client):
     c, _ = client
     r = c.post("/runs")

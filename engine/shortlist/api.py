@@ -204,6 +204,17 @@ def create_app(
             raise HTTPException(404, "ไม่พบ run")
         return run
 
+    @app.get("/candidates/history")
+    def candidate_history_dates(c: sqlite3.Connection = Depends(conn)) -> list[dict]:
+        return db.history_dates(c)
+
+    @app.get("/candidates/history/{price_date}")
+    def candidate_history(price_date: str, c: sqlite3.Connection = Depends(conn)) -> dict:
+        found = db.history(c, price_date)
+        if found is None:
+            raise HTTPException(404, "ไม่มีประวัติของวันที่นี้")
+        return found
+
     @app.get("/candidates")
     def candidates(c: sqlite3.Connection = Depends(conn)) -> dict:
         run = db.latest_successful_run(c)

@@ -58,6 +58,20 @@ CREATE TABLE IF NOT EXISTS evaluations (
     result TEXT NOT NULL,
     PRIMARY KEY (run_id, symbol)
 );
+-- candidates of the latest successful run per closing date, kept forever (candidate-history D1)
+CREATE TABLE IF NOT EXISTS candidate_history (
+    price_date TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    run_id INTEGER NOT NULL,
+    candidate_rank INTEGER NOT NULL,
+    result TEXT NOT NULL,
+    PRIMARY KEY (price_date, symbol)
+);
+-- one row per stored closing date, so a day without candidates still lists with 0
+CREATE TABLE IF NOT EXISTS candidate_history_days (
+    price_date TEXT PRIMARY KEY,
+    run_id INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS manual_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
@@ -113,7 +127,17 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
         conn.execute("DROP TABLE financials_quarterly")
     # old net-only backfill that merged institution with proprietary; only 4-type sources are kept (investor-type-flow D5)
     conn.execute("DROP TABLE IF EXISTS investor_flow_net")
+    had_history = conn.execute("SELECT 1 FROM sqlite_master WHERE name='candidate_history'").fetchone()
     conn.executescript(SCHEMA)
+    if not had_history:
+        # so the list of the day this table appears is not lost (candidate-history D3)
+        with conn:
+            latest = "(SELECT MAX(id) FROM runs WHERE status='succeeded')"
+            conn.execute(f"INSERT INTO candidate_history_days SELECT price_date, id FROM runs WHERE id = {latest}")
+            conn.execute(
+                "INSERT INTO candidate_history SELECT r.price_date, e.symbol, e.run_id, e.candidate_rank, e.result "
+                f"FROM evaluations e JOIN runs r ON r.id = e.run_id WHERE e.candidate_rank IS NOT NULL AND e.run_id = {latest}"
+            )
     if "source" not in {r["name"] for r in conn.execute("PRAGMA table_info(investor_flow)")}:
         conn.execute("ALTER TABLE investor_flow ADD COLUMN source TEXT NOT NULL DEFAULT 'set'")
     return conn
@@ -192,7 +216,15 @@ def save_run(conn: sqlite3.Connection, run_id: int, results: RunResults) -> None
             "INSERT INTO run_failures VALUES (?, ?, ?)",
             [(run_id, symbol, reason) for symbol, reason in results.failures.items()],
         )
-        # evaluations of older runs are not kept (post-mortem history is out of scope)
+        # the latest successful run of a closing date replaces that date's candidates (candidate-history D2)
+        conn.execute("DELETE FROM candidate_history WHERE price_date=?", (results.price_date,))
+        conn.execute("INSERT OR REPLACE INTO candidate_history_days VALUES (?, ?)", (results.price_date, run_id))
+        conn.execute(
+            "INSERT INTO candidate_history SELECT ?, symbol, run_id, candidate_rank, result "
+            "FROM evaluations WHERE run_id=? AND candidate_rank IS NOT NULL",
+            (results.price_date, run_id),
+        )
+        # evaluations of older runs are not kept; candidate_history keeps the candidates
         conn.execute("DELETE FROM evaluations WHERE run_id < ?", (run_id,))
         conn.execute(
             "UPDATE runs SET status='succeeded', finished_at=?, price_date=?, total=?, succeeded=?, failed=? WHERE id=?",
@@ -240,6 +272,25 @@ def candidates(conn: sqlite3.Connection, run_id: int) -> list[dict]:
         (run_id,),
     )
     return [json.loads(r["result"]) for r in rows]
+
+
+def history_dates(conn: sqlite3.Connection) -> list[dict]:
+    """Stored closing dates with their candidate count, newest first."""
+    rows = conn.execute(
+        "SELECT d.price_date, (SELECT COUNT(*) FROM candidate_history h WHERE h.price_date = d.price_date) AS count "
+        "FROM candidate_history_days d ORDER BY d.price_date DESC"
+    )
+    return [dict(r) for r in rows]
+
+
+def history(conn: sqlite3.Connection, price_date: str) -> dict | None:
+    day = conn.execute("SELECT run_id FROM candidate_history_days WHERE price_date=?", (price_date,)).fetchone()
+    if day is None:
+        return None
+    rows = conn.execute(
+        "SELECT result FROM candidate_history WHERE price_date=? ORDER BY candidate_rank", (price_date,)
+    )
+    return {"price_date": price_date, "run_id": day["run_id"], "candidates": [json.loads(r["result"]) for r in rows]}
 
 
 def evaluation(conn: sqlite3.Connection, run_id: int, symbol: str) -> dict | None:

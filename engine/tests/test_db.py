@@ -195,3 +195,61 @@ def test_backfill_keeps_set_days_and_set_fetch_replaces_backfill(tmp_path):
     db.save_investor_flow(conn, investor_flow(date(2026, 10, 12), foreign_buy=41e9))
     row = next(r for r in db.investor_flow(conn) if r["date"] == "2026-10-12")
     assert (row["source"], row["foreign_buy"]) == ("set", 41e9)
+
+
+def run_with(conn, price_date: str, candidates: list[str], others: tuple[str, ...] = ("ZZZ",)) -> int:
+    """A successful run whose candidates are ranked in the given order."""
+    run_id = db.start_run(conn, stale_minutes=30)
+    evaluations = [{"symbol": s, "candidate_rank": i, "price": float(i)} for i, s in enumerate(candidates, start=1)]
+    evaluations += [{"symbol": s, "candidate_rank": None} for s in others]
+    db.save_run(conn, run_id, db.RunResults([], {}, {}, evaluations, {}, price_date))
+    return run_id
+
+
+def test_new_closing_date_adds_to_history(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    run_with(conn, "2026-10-15", ["AAA", "BBB"])
+    run_with(conn, "2026-10-16", ["CCC"])
+    assert db.history_dates(conn) == [{"price_date": "2026-10-16", "count": 1}, {"price_date": "2026-10-15", "count": 2}]
+    old = db.history(conn, "2026-10-15")
+    assert [c["symbol"] for c in old["candidates"]] == ["AAA", "BBB"]  # kept after its evaluations were deleted
+    assert conn.execute("SELECT COUNT(*) FROM evaluations WHERE symbol='AAA'").fetchone()[0] == 0
+
+
+def test_rerun_of_the_same_closing_date_replaces_the_whole_set(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    run_with(conn, "2026-10-15", ["AAA", "BBB"])
+    later = run_with(conn, "2026-10-15", ["BBB"])
+    h = db.history(conn, "2026-10-15")
+    assert h["run_id"] == later and [c["symbol"] for c in h["candidates"]] == ["BBB"]
+
+
+def test_failed_run_leaves_history_alone(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    run_with(conn, "2026-10-15", ["AAA"])
+    db.fail_run(conn, db.start_run(conn, stale_minutes=30), "ใช้เวลาเกิน 20 นาที")
+    assert db.history_dates(conn) == [{"price_date": "2026-10-15", "count": 1}]
+
+
+def test_run_without_candidates_lists_its_date_with_zero(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    run_with(conn, "2026-10-15", ["AAA"])
+    run_with(conn, "2026-10-16", [])
+    assert db.history_dates(conn)[0] == {"price_date": "2026-10-16", "count": 0}
+    assert db.history(conn, "2026-10-16")["candidates"] == []
+    assert db.history(conn, "2026-01-01") is None
+
+
+def test_first_connect_seeds_history_from_the_latest_successful_run_once(tmp_path):
+    path = tmp_path / "t.db"
+    conn = db.connect(path)
+    run_with(conn, "2026-10-14", ["OLD"])
+    run_id = run_with(conn, "2026-10-15", ["AAA", "BBB"])
+    conn.executescript("DROP TABLE candidate_history; DROP TABLE candidate_history_days")  # a DB from before this change
+    conn.commit()
+    conn.close()
+    seeded = db.connect(path)
+    assert db.history_dates(seeded) == [{"price_date": "2026-10-15", "count": 2}]
+    assert db.history(seeded, "2026-10-15")["run_id"] == run_id
+    seeded.close()
+    assert len(db.history(db.connect(path), "2026-10-15")["candidates"]) == 2  # not seeded twice

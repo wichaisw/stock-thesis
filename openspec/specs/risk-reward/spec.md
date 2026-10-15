@@ -31,13 +31,17 @@
 - **WHEN** median ของ fair value panel ต่ำกว่าราคาปัจจุบัน
 - **THEN** RRR แสดงเป็น N/A ด้วยเหตุผลว่าไม่มี upside
 
-### Requirement: Reward ต่อเดือน
-ระบบ SHALL คำนวณ reward ต่อเดือน = upside% / ระยะถือที่คาด โดยระยะถือที่คาดคือจำนวนเดือนจากวันนี้ถึงกำหนดส่งงบครั้งถัดไป (จาก event calendar) แต่ไม่น้อยกว่า 1 และไม่เกิน 3 เดือน
+### Requirement: ป้ายเตือน upside สูงผิดปกติ
+ระบบ SHALL ติดป้ายเตือนเมื่อ upside = (target − entry) / entry สูงกว่าเกณฑ์ (default 100%, ปรับได้ในหน้า settings) เพื่อบอกว่า target อาจถูก band ในอดีตดึงสูงเกินจริง ระบบ SHALL ไม่ตัดหุ้นออกและไม่ใช้ป้ายนี้ในการเรียงลำดับ
 
-#### Scenario: งบใกล้ออก
-- **WHEN** upside คือ 15% และกำหนดส่งงบครั้งถัดไปอยู่ในอีก 0.5 เดือน
-- **THEN** ระยะถือที่คาดคือ 1 เดือน และ reward ต่อเดือนคือ 15%
+#### Scenario: upside เกินเกณฑ์
+- **WHEN** entry 2.70 และ target 15.73 (upside 483%)
+- **THEN** หุ้นถูกติดป้ายเตือน upside สูงผิดปกติ และยังอยู่ใน candidate list ถ้าผ่าน gate อื่น
 
-#### Scenario: งบอีกนาน
-- **WHEN** upside คือ 15% และกำหนดส่งงบครั้งถัดไปอยู่ในอีก 2.5 เดือน
-- **THEN** reward ต่อเดือนคือ 6%
+#### Scenario: upside ไม่เกินเกณฑ์
+- **WHEN** entry 12.40 และ target 14.20 (upside 14.5%)
+- **THEN** ไม่มีป้ายเตือน upside สูงผิดปกติ
+
+#### Scenario: ไม่มี upside
+- **WHEN** target ต่ำกว่าหรือเท่ากับ entry หรือ fair value panel ไม่มีเกณฑ์ที่คำนวณได้
+- **THEN** ไม่มีป้ายเตือน upside สูงผิดปกติ

@@ -4,7 +4,7 @@ import pandas as pd
 
 from shortlist.config import FairValue
 from shortlist.core import num
-from shortlist.core.quality import roe_ttm
+from shortlist.core.quality import reported_quarters, roe_ttm
 
 LABELS = {
     "pe_median": "PE band (median 5 ปี)",
@@ -47,7 +47,7 @@ def peers_for(symbol: str, sector: str, pe_by_symbol: dict[str, tuple[str, float
 def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: FairValue, caps: pd.DataFrame) -> dict:
     """PE/PBV bands are company-level (market cap ÷ profit or equity) and converted back with today's
     share count, so splits, capital raises and the source's dividend-adjusted prices don't skew them."""
-    reported = quarterly[quarterly["eps"].notna()].join(caps[["mkt_cap"]])
+    reported = reported_quarters(quarterly)[0].join(caps[["mkt_cap"]])
     hist = reported.tail(cfg.lookback_quarters)
     ttm = net_profit_ttm(reported)
     shares = latest_shares(caps)

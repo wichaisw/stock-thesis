@@ -76,7 +76,7 @@ def excluded(stocks: dict[str, StockData], start: str, end: str, threshold: floa
         if len(splits):
             out[sym] = f"split หรือปันผลเป็นหุ้น {splits.index[0]:%Y-%m-%d} ratio {splits.iloc[0]:g}"
             continue
-        reported = s.quarterly[s.quarterly["eps"].notna()]
+        reported = quality.reported_quarters(s.quarterly)[0]
         equity = reported.loc[(reported.index >= first) & (reported.index <= end), "equity"]
         change = equity.pct_change().abs()
         if change.max() > threshold:
@@ -106,7 +106,7 @@ def cap_gap(quarterly: pd.DataFrame, caps: pd.DataFrame, lookback: int) -> str |
     """Quarters without a market cap between the first and last ones that have it. Quarters before the share
     count starts (Nov 2018) only mean fewer band points, so they are not a gap (user decision, design D3).
     Trailing ones aren't either: skipping on them would hide a leaked statement from the poison check."""
-    hist = quarterly[quarterly["eps"].notna()].join(caps[["mkt_cap"]]).tail(lookback)
+    hist = quality.reported_quarters(quarterly)[0].join(caps[["mkt_cap"]]).tail(lookback)
     has = hist["mkt_cap"].notna()
     missing = hist.index[has.cummax() & has[::-1].cummax()[::-1] & ~has]
     return f"market cap ขาดใน {', '.join(missing)}" if len(missing) else None

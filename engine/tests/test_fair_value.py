@@ -295,3 +295,16 @@ def test_gate_method_disabled_in_panel_counts_as_not_computable():
     g = fair_value.gate([fv_item("justified_pbv", 14.2, 0.155)], GATE)
     assert g["items"][0]["mos"] is None and g["items"][0]["reason"] == "ปิดเกณฑ์นี้อยู่"
     assert g["method"] == "justified_pbv"
+
+
+def test_trailing_eps_only_quarter_is_not_used():
+    full = history(21)
+    partial = full.copy()
+    partial.iloc[-1, partial.columns.get_indexer(["net_profit", "equity"])] = float("nan")
+    partial.iloc[-1, partial.columns.get_loc("eps")] = 5.0  # would move EPS TTM and the bands if counted
+    caps = market_caps(full)
+    with_row = evaluate(partial, 12.0, [15.0, 16.0, 17.0], caps=caps)
+    without = evaluate(full.iloc[:-1], 12.0, [15.0, 16.0, 17.0], caps=caps)
+    assert with_row["eps_ttm"] == without["eps_ttm"] == 4.0
+    assert with_row["items"] == without["items"]
+    assert item(with_row, "justified_pbv")["fair_value"] is not None

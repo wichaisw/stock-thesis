@@ -63,7 +63,8 @@ def test_one_strong_quarter_does_not_pass_roe():
 
 
 def test_missing_roe_input_fails_without_guessing():
-    r = quality.evaluate(quarters(equity=[np.nan]), "Commerce", CFG.quality)
+    # a gap before the latest quarter; a trailing EPS-only quarter is left out instead (see below)
+    r = quality.evaluate(quarters(equity=[np.nan, 1e9 * 4 / 0.14]), "Commerce", CFG.quality)
     roe = check(r, "roe")
     assert roe["passed"] is False and roe["value"] is None
     assert "ไม่ครบ" in roe["reason"]
@@ -134,3 +135,47 @@ def test_no_inflection_still_passes():
     r = quality.evaluate(quarters(), "Commerce", CFG.quality)
     assert r["passed"]
     assert not r["inflection"]["flag"]
+
+
+def eps_only_last(df: pd.DataFrame, eps: float = 1.0) -> pd.DataFrame:
+    """thaifin has only the EPS of the latest quarter so far."""
+    df = df.copy()
+    df.iloc[-1] = np.nan
+    df.iloc[-1, df.columns.get_loc("eps")] = eps
+    return df
+
+
+def test_trailing_eps_only_quarter_is_left_out():
+    complete = quarters(13)
+    r = quality.evaluate(eps_only_last(complete), "Commerce", CFG.quality)
+    same = quality.evaluate(complete.iloc[:-1], "Commerce", CFG.quality)
+    assert r["passed"]
+    assert check(r, "roe") == check(same, "roe") and check(r, "no_loss") == check(same, "no_loss")
+    assert check(r, "min_quarters")["reason"] == "มีงบ 12 ไตรมาส (ไม่นับ q12 ที่ยังมีแค่ EPS)"
+
+
+def test_eps_only_quarter_with_a_loss_is_kept():
+    r = quality.evaluate(eps_only_last(quarters(13), eps=-0.15), "Commerce", CFG.quality)
+    assert "ไม่ครบ" in check(r, "roe")["reason"] and check(r, "min_quarters")["value"] == 13
+
+
+def test_nothing_is_left_out_when_the_quarter_before_is_incomplete_too():
+    df = quarters(13)
+    df["net_profit"] = np.nan  # a fund with no net profit in thaifin at all
+    reported, dropped = quality.reported_quarters(df)
+    assert dropped is None and len(reported) == 13
+    assert "ไม่ครบ" in check(quality.evaluate(df, "Commerce", CFG.quality), "roe")["reason"]
+
+
+def test_gap_in_the_middle_is_not_hidden():
+    df = quarters(13)
+    df.iloc[-2, df.columns.get_loc("equity")] = np.nan
+    assert quality.reported_quarters(df)[1] is None
+    assert "ไม่ครบ" in check(quality.evaluate(df, "Commerce", CFG.quality), "roe")["reason"]
+
+
+def test_complete_statements_are_unchanged():
+    df = quarters(13)
+    reported, dropped = quality.reported_quarters(df)
+    assert dropped is None and reported.equals(df)
+    assert check(quality.evaluate(df, "Commerce", CFG.quality), "min_quarters")["reason"] == "มีงบ 13 ไตรมาส"

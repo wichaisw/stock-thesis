@@ -22,16 +22,33 @@ def _check(name: str, passed: bool | None, value: object, threshold: str, reason
     return {"name": name, "passed": passed, "value": value, "threshold": threshold, "reason": reason}
 
 
-def evaluate(quarterly: pd.DataFrame, sector: str, cfg: Quality) -> dict:
+def reported_quarters(quarterly: pd.DataFrame) -> tuple[pd.DataFrame, str | None]:
+    """Quarters with EPS, and the trailing quarter left out because thaifin has only its EPS so far.
+
+    Only the last one, only when EPS > 0 and the quarter before is complete (drop-partial-latest-quarter
+    D2/D3): a gap in the middle, or a possible loss, still fails ROE as incomplete instead of hiding.
+    """
     reported = quarterly[quarterly["eps"].notna()]
+    if len(reported) < 2:
+        return reported, None
+    last, before = reported.iloc[-1], reported.iloc[-2]
+    partial = last[["net_profit", "equity"]].isna().any()
+    if partial and last["eps"] > 0 and before[["net_profit", "equity"]].notna().all():
+        return reported.iloc[:-1], str(reported.index[-1])
+    return reported, None
+
+
+def evaluate(quarterly: pd.DataFrame, sector: str, cfg: Quality) -> dict:
+    reported, dropped = reported_quarters(quarterly)
     n = len(reported)
+    note = f" (ไม่นับ {dropped} ที่ยังมีแค่ EPS)" if dropped else ""
     checks = [
         _check(
             "min_quarters",
             n >= cfg.min_quarters,
             n,
             f"≥ {cfg.min_quarters} ไตรมาส",
-            f"มีงบ {n} ไตรมาส" + ("" if n >= cfg.min_quarters else " ประวัติงบไม่พอ"),
+            f"มีงบ {n} ไตรมาส{note}" + ("" if n >= cfg.min_quarters else " ประวัติงบไม่พอ"),
         )
     ]
     if n < cfg.min_quarters:

@@ -8,6 +8,7 @@ import pandas as pd
 
 from shortlist import db
 from shortlist.config import load_config
+from shortlist.core.quality import reported_quarters
 
 MIN_MOS = -1.0
 MAX_FV_TO_PRICE = 5.0
@@ -31,8 +32,8 @@ def evaluation_flags(e: dict) -> list[str]:
 
 
 def quarterly_flags(q: pd.DataFrame, lookback: int, threshold: float, warned: bool) -> list[str]:
-    # same window as core/fair_value: reported quarters only, so pre-IPO rows don't count
-    hist = q[q["eps"].notna()].tail(lookback)
+    # same window as core/fair_value: reported quarters only, so pre-IPO rows and an EPS-only last quarter don't count
+    hist = reported_quarters(q)[0].tail(lookback)
     out = []
     recent = hist.tail(4)
     for col in [c for c in CHECKED_FIELDS if c in q]:

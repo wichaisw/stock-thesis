@@ -36,5 +36,22 @@ def main() -> None:
     )
 
 
+def backfill_flow() -> None:
+    """One-off, re-runnable: daily investor-type history from InfoQuest news (daily-flow-backfill-chart D4)."""
+    from shortlist.sources.infoquest import InfoQuestFlowHistory
+
+    parser = argparse.ArgumentParser(description="เติมมูลค่าซื้อขายตามประเภทนักลงทุนรายวันย้อนหลังจาก InfoQuest")
+    parser.add_argument("--db", type=Path, default=db.DEFAULT_PATH)
+    args = parser.parse_args()
+    conn = db.connect(args.db)
+    print("กำลังดึงข่าวจาก InfoQuest (ราว 2 นาที)…", flush=True)
+    try:
+        added = batch.backfill_investor_flow(conn, InfoQuestFlowHistory())
+    except Exception as e:
+        sys.exit(f"เติมย้อนหลังไม่ได้: {type(e).__name__}: {e}")
+    days = db.investor_flow(conn, limit=10_000)
+    print(f"เพิ่ม {added} วัน ประวัติมี {len(days)} วัน ตั้งแต่ {days[-1]['date']} ถึง {days[0]['date']}")
+
+
 if __name__ == "__main__":
     main()

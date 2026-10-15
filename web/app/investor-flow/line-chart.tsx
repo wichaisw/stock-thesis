@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { type KeyboardEvent, type ReactNode, useState } from "react";
 
-import { INVESTOR_TYPES, type InvestorType, type MonthlyNetPoint } from "@/lib/engine";
-import { thaiDateTime } from "@/lib/format";
+import { INVESTOR_TYPES, type InvestorType } from "@/lib/engine";
+
+export type ChartPoint = { label: string; values: Record<InvestorType, number> };
 
 // dataviz reference palette slots 1-4 (light / dark steps); fixed per type so hiding a line never repaints the others
 const COLOR: Record<InvestorType, { stroke: string; bg: string }> = {
@@ -16,10 +17,8 @@ const COLOR: Record<InvestorType, { stroke: string; bg: string }> = {
 const W = 720;
 const H = 300;
 const PAD = { top: 12, right: 16, bottom: 28, left: 72 };
-
-function thaiMonth(month: string): string {
-  return new Date(`${month}-01T00:00:00`).toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
-}
+// about 7 x-axis labels keeps them apart when the chart shrinks on a phone
+const X_LABELS = 7;
 
 function million(x: number): string {
   const s = Math.round(x / 1e6).toLocaleString("th-TH");
@@ -36,18 +35,33 @@ function yTicks(min: number, max: number): number[] {
   return ticks;
 }
 
-export function MonthlyChart({ points, labels }: { points: MonthlyNetPoint[]; labels: Record<InvestorType, string> }) {
+/** Net value lines of the 4 investor types, in baht; toggles per type and a readout for hover or arrow keys. */
+export function NetLineChart({
+  title,
+  ariaLabel,
+  points,
+  labels,
+  caption,
+}: {
+  title: string;
+  ariaLabel: string;
+  points: ChartPoint[];
+  labels: Record<InvestorType, string>;
+  caption: ReactNode;
+}) {
   const [hidden, setHidden] = useState<Set<InvestorType>>(new Set());
   const [active, setActive] = useState<number | null>(null);
   const shown = INVESTOR_TYPES.filter((t) => !hidden.has(t));
+  const last = points.length - 1;
 
-  const values = shown.flatMap((t) => points.map((p) => p[`${t}_net`]));
+  const values = shown.flatMap((t) => points.map((p) => p.values[t]));
   const ticks = yTicks(Math.min(0, ...values), Math.max(0, ...values));
   const [lo, hi] = [ticks[0], ticks[ticks.length - 1]];
-  const x = (i: number) => PAD.left + (i * (W - PAD.left - PAD.right)) / Math.max(points.length - 1, 1);
+  const band = (W - PAD.left - PAD.right) / Math.max(last, 1);
+  const x = (i: number) => PAD.left + i * band;
   const y = (v: number) => PAD.top + ((hi - v) * (H - PAD.top - PAD.bottom)) / (hi - lo || 1);
-  const band = (W - PAD.left - PAD.right) / Math.max(points.length - 1, 1);
-  const current = points[active ?? points.length - 1];
+  const labelStep = Math.max(1, Math.ceil(points.length / X_LABELS));
+  const current = points[active ?? last];
 
   const toggle = (t: InvestorType) =>
     setHidden((h) => {
@@ -57,9 +71,17 @@ export function MonthlyChart({ points, labels }: { points: MonthlyNetPoint[]; la
       return next;
     });
 
+  const onKey = (e: KeyboardEvent) => {
+    const at = active ?? last;
+    const next = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: last }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    setActive(Math.min(Math.max(next, 0), last));
+  };
+
   return (
     <section className="space-y-2">
-      <h2 className="text-lg font-semibold">มูลค่าสุทธิสะสมรายเดือน ย้อนหลัง 1 ปี</h2>
+      <h2 className="text-lg font-semibold">{title}</h2>
       <div className="flex flex-wrap gap-2 text-sm">
         {INVESTOR_TYPES.map((t) => (
           <button
@@ -76,20 +98,23 @@ export function MonthlyChart({ points, labels }: { points: MonthlyNetPoint[]; la
       </div>
 
       <div aria-live="polite" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <span className="font-medium">{thaiMonth(current.month)}</span>
+        <span className="font-medium">{current.label}</span>
         {shown.map((t) => (
           <span key={t} className="text-zinc-600 dark:text-zinc-400">
-            {labels[t]} <span className="font-medium text-zinc-900 dark:text-zinc-100">{million(current[`${t}_net`])}</span>
+            {labels[t]} <span className="font-medium text-zinc-900 dark:text-zinc-100">{million(current.values[t])}</span>
           </span>
         ))}
       </div>
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-auto w-full rounded-md border border-zinc-200 text-zinc-500 dark:border-zinc-800"
+        className="h-auto w-full rounded-md border border-zinc-200 text-zinc-500 outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-800"
         role="group"
-        aria-label="กราฟเส้นมูลค่าสุทธิสะสมรายเดือน หน่วยล้านบาท"
+        tabIndex={0}
+        aria-label={`${ariaLabel} หน่วยล้านบาท ใช้ลูกศรซ้ายขวาเพื่ออ่านค่าแต่ละจุด`}
+        onKeyDown={onKey}
         onMouseLeave={() => setActive(null)}
+        onBlur={() => setActive(null)}
       >
         {ticks.map((v) => (
           <g key={v}>
@@ -105,17 +130,16 @@ export function MonthlyChart({ points, labels }: { points: MonthlyNetPoint[]; la
             </text>
           </g>
         ))}
-        {/* every other month keeps labels apart when the chart shrinks on a phone */}
         {points.map((p, i) =>
-          i % 2 === 0 || i === points.length - 1 ? (
+          i === last || (i % labelStep === 0 && last - i >= labelStep) ? (
             <text
-              key={p.month}
+              key={i}
               x={x(i)}
               y={H - 8}
-              textAnchor={i === points.length - 1 ? "end" : "middle"}
+              textAnchor={i === last ? "end" : "middle"}
               className="fill-current text-[11px]"
             >
-              {thaiMonth(p.month)}
+              {p.label}
             </text>
           ) : null,
         )}
@@ -128,41 +152,27 @@ export function MonthlyChart({ points, labels }: { points: MonthlyNetPoint[]; la
               fill="none"
               strokeWidth={2}
               strokeLinejoin="round"
-              points={points.map((p, i) => `${x(i)},${y(p[`${t}_net`])}`).join(" ")}
+              points={points.map((p, i) => `${x(i)},${y(p.values[t])}`).join(" ")}
             />
             {active !== null && (
-              <circle
-                cx={x(active)}
-                cy={y(points[active][`${t}_net`])}
-                r={4}
-                strokeWidth={2}
-                className="fill-white dark:fill-zinc-950"
-              />
+              <circle cx={x(active)} cy={y(points[active].values[t])} r={4} strokeWidth={2} className="fill-white dark:fill-zinc-950" />
             )}
           </g>
         ))}
-        {points.map((p, i) => (
+        {points.map((_, i) => (
           <rect
-            key={p.month}
+            key={i}
             x={x(i) - band / 2}
             y={PAD.top}
             width={band}
             height={H - PAD.top - PAD.bottom}
             fill="transparent"
-            tabIndex={0}
-            aria-label={`${thaiMonth(p.month)}: ${shown.map((t) => `${labels[t]} ${million(p[`${t}_net`])}`).join(", ")} ล้านบาท`}
             onMouseEnter={() => setActive(i)}
-            onFocus={() => setActive(i)}
-            onBlur={() => setActive(null)}
-            className="outline-none focus-visible:stroke-zinc-500"
           />
         ))}
       </svg>
 
-      <p className="text-sm text-zinc-500">
-        มูลค่าสะสมสุทธิ (ซื้อ − ขาย) รายเดือนย้อนหลัง 1 ปี นับสะสมจากเดือนแรกของกราฟ หน่วยล้านบาท
-        จุดเดือนล่าสุดคือค่าถึงวันที่ดึง · ที่มา SET · ดึงเมื่อ {thaiDateTime(points[0].fetched_at)}
-      </p>
+      <p className="text-sm text-zinc-500">{caption}</p>
     </section>
   );
 }

@@ -2,12 +2,11 @@ from datetime import datetime
 
 from playwright.sync_api import sync_playwright
 
-from shortlist.sources import INVESTOR_TYPES, InvestorFlow, InvestorFlowFetch, MonthlyNetFlow
+from shortlist.sources import INVESTOR_TYPES, InvestorFlow, InvestorFlowFetch, MonthlyNetFlow, check_investor_flow
 
 PAGE_URL = "https://www.set.or.th/th/market/statistics/investor-type"
 API_PATH = "/api/set/market/SET/investor-type"
 CHART_PATH = "/api/set/market/SET/investor-type-chart?period=1Y"
-MAX_SUM_GAP = 0.01
 # buys equal sells market-wide; real sets are off by a few baht of float noise
 MAX_NET_SUM = 1e6
 
@@ -21,10 +20,7 @@ def to_investor_flow(raw: dict) -> InvestorFlow:
     total = float(raw["totalValue"])
     buy = {t: float(by_type[t]["buyValue"]) for t in INVESTOR_TYPES}
     sell = {t: float(by_type[t]["sellValue"]) for t in INVESTOR_TYPES}
-    for side, values in (("ซื้อ", buy), ("ขาย", sell)):
-        if abs(sum(values.values()) - total) > MAX_SUM_GAP * total:
-            raise ValueError(f"ผลรวมมูลค่า{side} {sum(values.values()):,.0f} ต่างจากมูลค่ารวม {total:,.0f} เกิน 1%")
-    return InvestorFlow(datetime.fromisoformat(raw["asOfDate"]).date(), total, buy, sell)
+    return check_investor_flow(InvestorFlow(datetime.fromisoformat(raw["asOfDate"]).date(), total, buy, sell))
 
 
 def to_monthly_net(raw: list[dict]) -> list[MonthlyNetFlow]:

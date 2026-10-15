@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from shortlist.sources import QUARTERLY_COLUMNS, FinancialSource, InvestorFlowSource, PriceSource
+from shortlist.sources.infoquest import InfoQuestFlowHistory, article_to_flow, set_article_links
 from shortlist.sources.preferred import PreferredStatements
 from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow, to_monthly_net
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
@@ -262,6 +263,72 @@ def test_monthly_net_rejects_a_repeated_month():
     raw.append(raw[-1])
     with pytest.raises(ValueError, match="2026-10"):
         to_monthly_net(raw)
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+ARTICLE = (FIXTURES / "infoquest_article_2026-10-14.html").read_text()
+TAG_PAGE = (FIXTURES / "infoquest_tag_page1_2026-10-15.html").read_text()
+
+
+def test_infoquest_article_matches_set_for_14_oct():
+    flow = article_to_flow(ARTICLE)
+    assert flow.date == date(2026, 10, 14)
+    assert (flow.buy["foreign"], flow.sell["foreign"]) == (53_230_150_000, 47_539_170_000)
+    # same day from SET's own API, to the article's 0.01 million rounding
+    set_flow = to_investor_flow(investor_raw())
+    for t in ("institution", "proprietary", "foreign", "individual"):
+        assert abs(flow.buy[t] - set_flow.buy[t]) <= 5_000 and abs(flow.sell[t] - set_flow.sell[t]) <= 5_000
+
+
+def test_infoquest_listing_keeps_set_only_articles():
+    links = set_article_links(TAG_PAGE)
+    assert len(links) == 12 and links[0] == "https://www.infoquest.co.th/2026/663817"
+    assert "https://www.infoquest.co.th/2026/663818" not in links  # the (SET+MAI) twin
+
+
+def test_infoquest_article_missing_a_type_names_it():
+    with pytest.raises(ValueError, match="2026-10-14.*proprietary"):
+        article_to_flow(ARTICLE.replace("บัญชีบริษัทหลักทรัพย์ 4,791.37", "บัญชีบริษัทหลักทรัพย์ n/a"))
+
+
+@pytest.mark.parametrize(
+    "broken, error",
+    [
+        (ARTICLE.replace('property="og:description"', 'property="og:title2"'), "og:description"),
+        (ARTICLE.replace("ประจำวันที่ 14 ตุลาคม 2569", "ประจำวันที่"), "วันที่"),
+        (ARTICLE.replace("53,230.15 66.01 47,539.17", "47,539.17 66.01 53,230.15"), "ไม่เท่ากับสุทธิ"),
+    ],
+)
+def test_infoquest_article_rejects_bad_format(broken, error):
+    with pytest.raises(ValueError, match=error):
+        article_to_flow(broken)
+
+
+def test_infoquest_history_walks_pages_until_404_oldest_first():
+    pages = {
+        "https://www.infoquest.co.th/tag/investor_type/page/1": TAG_PAGE,
+        "https://www.infoquest.co.th/tag/investor_type/page/2": None,
+    }
+    older = ARTICLE.replace("ประจำวันที่ 14 ตุลาคม 2569", "ประจำวันที่ 9 ตุลาคม 2569")
+    calls: list[str] = []
+
+    def get(url):
+        calls.append(url)
+        if url in pages:
+            return pages[url]
+        return ARTICLE if url.endswith("663817") else older
+
+    flows = InfoQuestFlowHistory(get, pause_seconds=0).fetch_history()
+    assert [f.date for f in flows] == [date(2026, 10, 9), date(2026, 10, 14)]
+    assert len(calls) == 2 + 12
+
+
+def test_infoquest_history_raises_on_http_error():
+    def get(url):
+        raise ConnectionError("refused")
+
+    with pytest.raises(ConnectionError):
+        InfoQuestFlowHistory(get, pause_seconds=0).fetch_history()
 
 
 def yahoo_statements(currency: str | None = "THB"):

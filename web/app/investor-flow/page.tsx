@@ -2,9 +2,30 @@ import { Suspense } from "react";
 
 import { Tag } from "@/app/badges";
 import { FetchButton } from "@/app/investor-flow/fetch-button";
-import { MonthlyChart } from "@/app/investor-flow/monthly-chart";
+import { NetLineChart } from "@/app/investor-flow/line-chart";
 import { engine, INVESTOR_TYPES, type InvestorFlowDay, type InvestorType, type MonthlyNetPoint } from "@/lib/engine";
 import { thaiDate, thaiDateTime } from "@/lib/format";
+
+// enough trading days for about a year of the daily chart; the table shows the newest TABLE_DAYS
+const CHART_DAYS = 250;
+const TABLE_DAYS = 60;
+
+function shortDate(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
+}
+
+/** Oldest first, each type's buy − sell summed from the first day. */
+function cumulativeNet(days: InvestorFlowDay[]) {
+  const sum = Object.fromEntries(INVESTOR_TYPES.map((t) => [t, 0])) as Record<InvestorType, number>;
+  return [...days].reverse().map((d) => {
+    for (const t of INVESTOR_TYPES) sum[t] += d[`${t}_buy`] - d[`${t}_sell`];
+    return { label: shortDate(d.date), values: { ...sum } };
+  });
+}
+
+function thaiMonth(month: string): string {
+  return new Date(`${month}-01T00:00:00`).toLocaleDateString("th-TH", { month: "short", year: "2-digit" });
+}
 
 const LABEL: Record<InvestorType, string> = {
   institution: "สถาบันในประเทศ",
@@ -31,10 +52,11 @@ export default function InvestorFlowPage() {
 }
 
 async function FlowTable() {
-  const [days, monthly] = await Promise.all([
-    engine<InvestorFlowDay[]>("/investor-flow"),
+  const [history, monthly] = await Promise.all([
+    engine<InvestorFlowDay[]>(`/investor-flow?limit=${CHART_DAYS}`),
     engine<MonthlyNetPoint[]>("/investor-flow/monthly"),
   ]);
+  const days = history.slice(0, TABLE_DAYS);
   const th = "px-3 py-2 font-medium";
   const cell = "px-3 py-2 text-right whitespace-nowrap";
 
@@ -53,7 +75,41 @@ async function FlowTable() {
           ยังไม่มีข้อมูลกราฟรายเดือน กราฟจะแสดงหลังดึงข้อมูลประเภทนักลงทุนสำเร็จครั้งแรก
         </p>
       ) : (
-        <MonthlyChart points={monthly} labels={LABEL} />
+        <NetLineChart
+          title="มูลค่าสุทธิสะสมรายเดือน ย้อนหลัง 1 ปี"
+          ariaLabel="กราฟเส้นมูลค่าสุทธิสะสมรายเดือน"
+          labels={LABEL}
+          points={monthly.map((p) => ({
+            label: thaiMonth(p.month),
+            values: Object.fromEntries(INVESTOR_TYPES.map((t) => [t, p[`${t}_net`]])) as Record<InvestorType, number>,
+          }))}
+          caption={
+            <>
+              มูลค่าสะสมสุทธิ (ซื้อ − ขาย) รายเดือนย้อนหลัง 1 ปี นับสะสมจากเดือนแรกของกราฟ หน่วยล้านบาท
+              จุดเดือนล่าสุดคือค่าถึงวันที่ดึง · ที่มา SET · ดึงเมื่อ {thaiDateTime(monthly[0].fetched_at)}
+            </>
+          }
+        />
+      )}
+
+      {history.length < 2 ? (
+        <p className="rounded-md border border-dashed border-zinc-300 p-8 text-center text-zinc-500 dark:border-zinc-700">
+          ข้อมูลรายวันยังไม่พอวาดกราฟ (ต้องมีอย่างน้อย 2 วัน)
+        </p>
+      ) : (
+        <NetLineChart
+          title="มูลค่าสุทธิสะสมรายวัน"
+          ariaLabel="กราฟเส้นมูลค่าสุทธิสะสมรายวัน"
+          labels={LABEL}
+          points={cumulativeNet(history)}
+          caption={
+            <>
+              มูลค่าสะสมสุทธิ (ซื้อ − ขาย) รายวัน นับสะสมจาก {thaiDate(history[history.length - 1].date)} ถึง{" "}
+              {thaiDate(history[0].date)} ({history.length.toLocaleString("th-TH")} วันทำการ) หน่วยล้านบาท
+              นับเฉพาะวันที่มีข้อมูล วันที่ขาดไม่ถูกรวม
+            </>
+          }
+        />
       )}
 
       {days.length === 0 ? (
@@ -87,6 +143,9 @@ async function FlowTable() {
                     {thaiDate(d.date)}{" "}
                     {d.intraday && (
                       <Tag title={`ดึงเมื่อ ${thaiDateTime(d.fetched_at)} ก่อนตลาดปิด`}>ระหว่างวัน</Tag>
+                    )}
+                    {d.source === "infoquest" && (
+                      <Tag title="เติมย้อนหลังจากข่าวสรุปรายวันของ InfoQuest ตรวจกับข้อมูลจาก SET แล้ว">InfoQuest</Tag>
                     )}
                   </td>
                   {INVESTOR_TYPES.map((t) => {

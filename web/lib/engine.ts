@@ -165,6 +165,7 @@ export type InvestorFlowDay = {
   total_value: number;
   fetched_at: string;
   intraday: boolean;
+  source: "set" | "infoquest";
 } & Record<`${InvestorType}_${"buy" | "sell"}`, number>;
 
 // one month of the 1-year chart: net value in baht, cumulative from the first month of the set

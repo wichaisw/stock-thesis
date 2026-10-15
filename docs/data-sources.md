@@ -1,6 +1,6 @@
 # Where the data comes from
 
-Almost all data comes in through the **batch**. It runs on weekdays at 17:30 (after SET closes at 16:30), or when you press "รัน batch". The web pages read only what is saved in `engine/shortlist.db`. One thing bypasses the batch: the investor flow fetch button.
+Almost all data comes in through the **batch**. It runs on weekdays at 17:30 (after SET closes at 16:30), or when you press "รัน batch". The web pages read only what is saved in `engine/shortlist.db`. Two things bypass the batch: the investor flow fetch button and the one-off InfoQuest backfill.
 
 For the step-by-step code view, see [batch-flow.md](batch-flow.md).
 
@@ -12,6 +12,7 @@ flowchart LR
         TF["thaifin<br/>(Finnomena data)"]
         YF["yfinance<br/>(Yahoo Finance)"]
         SET["set.or.th<br/>(opened in a hidden browser)"]
+        IQ["infoquest.co.th<br/>(daily news, one-off backfill)"]
     end
 
     YOU(["You"])
@@ -20,6 +21,7 @@ flowchart LR
     YF -->|"daily prices<br/>share count, dividends<br/>net income, equity"| BATCH
     SET -->|"today's buy/sell by investor type<br/>1-year monthly net chart"| BATCH
     SET -.->|"or the fetch button<br/>on the investor flow page"| DB
+    IQ -.->|"run once by hand<br/>(shortlist-backfill-flow)"| DB
 
     BATCH["Batch<br/>fetch → check → score"] --> DB[("shortlist.db")]
     YOU -->|"settings page<br/>(thresholds)"| DB

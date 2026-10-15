@@ -1,5 +1,6 @@
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -20,6 +21,7 @@ from tests.fakes import (
 )
 
 CFG = load_config()
+BKK = ZoneInfo("Asia/Bangkok")
 
 
 def fake_sources():
@@ -348,3 +350,49 @@ def test_failing_supplementary_statements_still_evaluate_the_stock(tmp_path):
     assert "AAA" not in db.failures(conn, run_id)
     assert db.evaluation(conn, run_id, "AAA")["fair_value"]["summary"]["computed"] > 0
     assert "ใช้กำไรและส่วนผู้ถือหุ้นจาก yfinance 0 ตัว" in lines
+
+
+class FakeFlowHistory:
+    def __init__(self, flows=None, error=None):
+        self.flows, self.error = flows or [], error
+
+    def fetch_history(self):
+        if self.error:
+            raise self.error
+        return self.flows
+
+
+def test_backfill_adds_missing_days_when_overlap_matches_set(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14)), datetime(2026, 10, 14, 18, 0, tzinfo=BKK))
+    # the article rounds to 0.01 million, so 5,000 baht off still matches
+    history = [investor_flow(date(2026, 10, 9)), investor_flow(date(2026, 10, 14), foreign_buy=50e9 + 5_000)]
+    assert batch.backfill_investor_flow(conn, FakeFlowHistory(history)) == 1
+    assert [(r["date"], r["source"]) for r in db.investor_flow(conn)] == [("2026-10-14", "set"), ("2026-10-09", "infoquest")]
+
+
+@pytest.mark.parametrize(
+    "stored, history, error",
+    [
+        (
+            [investor_flow(date(2026, 10, 14))],
+            [investor_flow(date(2026, 10, 9)), investor_flow(date(2026, 10, 14), foreign_buy=55e9)],
+            r"2026-10-14 foreign ซื้อ: InfoQuest 55,000.00 SET 50,000.00",
+        ),
+        ([], [investor_flow(date(2026, 10, 9))], "ยังไม่มีข้อมูลปิดตลาดจาก SET"),
+    ],
+)
+def test_backfill_writes_nothing_when_set_disagrees_or_is_missing(tmp_path, stored, history, error):
+    conn = db.connect(tmp_path / "t.db")
+    for f in stored:
+        db.save_investor_flow(conn, f, datetime(2026, 10, 14, 18, 0, tzinfo=BKK))
+    with pytest.raises(ValueError, match=error):
+        batch.backfill_investor_flow(conn, FakeFlowHistory(history))
+    assert [r["source"] for r in db.investor_flow(conn)] == ["set"] * len(stored)
+
+
+def test_backfill_source_error_writes_nothing(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    with pytest.raises(ConnectionError):
+        batch.backfill_investor_flow(conn, FakeFlowHistory(error=ConnectionError("refused")))
+    assert db.investor_flow(conn) == []

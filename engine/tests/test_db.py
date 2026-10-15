@@ -168,3 +168,30 @@ def test_connect_drops_the_old_net_only_table(tmp_path):
     sqlite3.connect(path).execute("CREATE TABLE investor_flow_net (date TEXT)").connection.commit()
     tables = {r[0] for r in db.connect(path).execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert "investor_flow_net" not in tables and "investor_flow_monthly" in tables
+
+
+def test_old_investor_flow_table_gets_source_set(tmp_path):
+    path = tmp_path / "t.db"
+    old = sqlite3.connect(path)
+    cols = ", ".join(f"{c} REAL NOT NULL" for c in db.FLOW_COLUMNS)
+    old.execute(f"CREATE TABLE investor_flow (date TEXT PRIMARY KEY, total_value REAL NOT NULL, {cols}, fetched_at TEXT NOT NULL)")
+    old.execute(f"INSERT INTO investor_flow VALUES ('2026-10-14', 1, {', '.join('1' * len(db.FLOW_COLUMNS))}, '2026-10-14T18:00:00+07:00')")
+    old.commit()
+    [row] = db.investor_flow(db.connect(path))
+    assert row["source"] == "set" and row["date"] == "2026-10-14"
+
+
+def test_backfill_keeps_set_days_and_set_fetch_replaces_backfill(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14), foreign_buy=40e9))
+    days = [investor_flow(date(2026, 10, d), foreign_buy=99e9) for d in (9, 12, 14)]
+    assert db.backfill_investor_flow(conn, days, "infoquest") == 2
+    assert db.backfill_investor_flow(conn, days, "infoquest") == 0
+    rows = {r["date"]: r for r in db.investor_flow(conn)}
+    assert len(rows) == 3
+    assert (rows["2026-10-14"]["source"], rows["2026-10-14"]["foreign_buy"]) == ("set", 40e9)
+    assert rows["2026-10-12"]["source"] == "infoquest" and not rows["2026-10-12"]["intraday"]
+
+    db.save_investor_flow(conn, investor_flow(date(2026, 10, 12), foreign_buy=41e9))
+    row = next(r for r in db.investor_flow(conn) if r["date"] == "2026-10-12")
+    assert (row["source"], row["foreign_buy"]) == ("set", 41e9)

@@ -7,7 +7,14 @@ import pandas as pd
 from shortlist import db
 from shortlist.config import Batch, Config
 from shortlist.core import candidates, catalyst, cdc, fair_value, num, quality, risk_reward
-from shortlist.sources import FinancialSource, InvestorFlowSource, PriceSource, StockInfo
+from shortlist.sources import (
+    INVESTOR_TYPES,
+    FinancialSource,
+    InvestorFlowHistorySource,
+    InvestorFlowSource,
+    PriceSource,
+    StockInfo,
+)
 
 Log = Callable[[str], None]
 
@@ -143,6 +150,32 @@ def record_investor_flow(conn: sqlite3.Connection, src: InvestorFlowSource, log:
     db.save_investor_flow(conn, got.daily)
     log(f"เก็บข้อมูลประเภทนักลงทุนของวันที่ {got.daily.date} ({time.monotonic() - started:.0f} วินาที)")
     return None
+
+
+# the backfill source rounds to 0.01 million baht
+MAX_BACKFILL_GAP = 10_000
+
+
+def backfill_investor_flow(conn: sqlite3.Connection, src: InvestorFlowHistorySource) -> int:
+    """Adds the days not stored yet (daily-flow-backfill-chart D3). Raises ValueError and writes nothing when any day
+    disagrees with a closing day already fetched from SET, or no such day overlaps. Returns how many days were added."""
+    flows = src.fetch_history()
+    closing = {r["date"]: r for r in db.investor_flow(conn, limit=10_000) if r["source"] == "set" and not r["intraday"]}
+    compared, errors = 0, []
+    for f in flows:
+        row = closing.get(f.date.isoformat())
+        if row is None:
+            continue
+        compared += 1
+        for t in INVESTOR_TYPES:
+            for side, side_th, value in (("buy", "ซื้อ", f.buy[t]), ("sell", "ขาย", f.sell[t])):
+                if abs(value - row[f"{t}_{side}"]) > MAX_BACKFILL_GAP:
+                    errors.append(f"{f.date} {t} {side_th}: InfoQuest {value / 1e6:,.2f} SET {row[f'{t}_{side}'] / 1e6:,.2f} ล้านบาท")
+    if errors:
+        raise ValueError("ไม่ตรงกับข้อมูลจาก SET ไม่เขียนข้อมูล: " + "; ".join(errors))
+    if not compared:
+        raise ValueError("ยังไม่มีข้อมูลปิดตลาดจาก SET ในช่วงเดียวกันให้เทียบ ไม่เขียนข้อมูล")
+    return db.backfill_investor_flow(conn, flows, "infoquest")
 
 
 def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log) -> db.RunResults:

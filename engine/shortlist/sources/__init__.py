@@ -73,6 +73,17 @@ class InvestorFlow:
     sell: dict[str, float]
 
 
+MAX_FLOW_SUM_GAP = 0.01
+
+
+def check_investor_flow(flow: InvestorFlow) -> InvestorFlow:
+    """Raises ValueError when the buy or sell sum of the 4 types is more than 1% off the total. Returns `flow`."""
+    for side, values in (("ซื้อ", flow.buy), ("ขาย", flow.sell)):
+        if abs(sum(values.values()) - flow.total_value) > MAX_FLOW_SUM_GAP * flow.total_value:
+            raise ValueError(f"ผลรวมมูลค่า{side} {sum(values.values()):,.0f} ต่างจากมูลค่ารวม {flow.total_value:,.0f} เกิน 1%")
+    return flow
+
+
 @dataclass(frozen=True)
 class MonthlyNetFlow:
     """One month of SET net value (buy − sell) by investor type in baht, cumulative from the first month of the set."""
@@ -90,6 +101,13 @@ class InvestorFlowFetch:
     monthly: list[MonthlyNetFlow] | None
     daily_error: str | None = None
     monthly_error: str | None = None
+
+
+@runtime_checkable
+class InvestorFlowHistorySource(Protocol):
+    def fetch_history(self) -> list[InvestorFlow]:
+        """Every day the source still lists, oldest first. Raises when a page or a day cannot be read or validated."""
+        ...
 
 
 @runtime_checkable

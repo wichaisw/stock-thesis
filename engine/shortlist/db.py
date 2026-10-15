@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS investor_flow (
     date TEXT PRIMARY KEY,
     total_value REAL NOT NULL,
     {", ".join(f"{c} REAL NOT NULL" for c in FLOW_COLUMNS)},
-    fetched_at TEXT NOT NULL
+    fetched_at TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'set'  -- 'set' (own fetch) or 'infoquest' (backfill)
 );
 -- latest 1-year chart only: each set is cumulative from a different first month, so sets do not mix
 CREATE TABLE IF NOT EXISTS investor_flow_monthly (
@@ -113,6 +114,8 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
     # old net-only backfill that merged institution with proprietary; only 4-type sources are kept (investor-type-flow D5)
     conn.execute("DROP TABLE IF EXISTS investor_flow_net")
     conn.executescript(SCHEMA)
+    if "source" not in {r["name"] for r in conn.execute("PRAGMA table_info(investor_flow)")}:
+        conn.execute("ALTER TABLE investor_flow ADD COLUMN source TEXT NOT NULL DEFAULT 'set'")
     return conn
 
 
@@ -319,14 +322,30 @@ def settings_stale(conn: sqlite3.Connection) -> bool:
     return datetime.fromisoformat(updated) > datetime.fromisoformat(run["started_at"])
 
 
-def save_investor_flow(conn: sqlite3.Connection, flow: InvestorFlow, fetched_at: datetime | None = None) -> None:
-    """One row per trading day; a later fetch of the same day replaces it."""
+_FLOW_INSERT = (
+    f"INTO investor_flow (date, total_value, {', '.join(FLOW_COLUMNS)}, fetched_at, source) "
+    f"VALUES (?, ?, {', '.join('?' * len(FLOW_COLUMNS))}, ?, ?)"
+)
+
+
+def _flow_row(flow: InvestorFlow, fetched_at: str, source: str) -> tuple:
     values = [v for t in INVESTOR_TYPES for v in (flow.buy[t], flow.sell[t])]
+    return (flow.date.isoformat(), flow.total_value, *values, fetched_at, source)
+
+
+def save_investor_flow(conn: sqlite3.Connection, flow: InvestorFlow, fetched_at: datetime | None = None) -> None:
+    """One row per trading day; a later fetch of the same day replaces it, a backfilled one too."""
     with conn:
-        conn.execute(
-            f"INSERT OR REPLACE INTO investor_flow VALUES (?, ?, {', '.join('?' * len(FLOW_COLUMNS))}, ?)",
-            (flow.date.isoformat(), flow.total_value, *values, (fetched_at or _now()).isoformat()),
-        )
+        conn.execute(f"INSERT OR REPLACE {_FLOW_INSERT}", _flow_row(flow, (fetched_at or _now()).isoformat(), "set"))
+
+
+def backfill_investor_flow(conn: sqlite3.Connection, flows: list[InvestorFlow], source: str) -> int:
+    """Adds only days not stored yet, in one transaction. Returns how many were added."""
+    at = _now().isoformat()
+    with conn:
+        before = conn.total_changes
+        conn.executemany(f"INSERT OR IGNORE {_FLOW_INSERT}", [_flow_row(f, at, source) for f in flows])
+        return conn.total_changes - before
 
 
 def investor_flow(conn: sqlite3.Connection, limit: int = 60) -> list[dict]:

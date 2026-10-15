@@ -12,9 +12,9 @@
 
 - [x] 2.1 เพิ่มหน่วย `checks` → "เกณฑ์" ใน `SettingUnit` และ `UNIT_LABEL` (`lib/format.ts`, `lib/engine.ts`) ตรวจด้วย `bun run lint` และเปิดหน้า settings ใน browser ว่าหมวด quality gate มีช่องใหม่ default 2 tooltip แสดงทั้ง hover และ focus และกรอก 5 แล้วบันทึกไม่ได้
 - [x] 2.2 สร้างฟังก์ชันนับ gate ใน `web/lib` (D3) แล้วให้หน้ารายละเอียดและ `lib/llm-export.ts` ใช้สร้างแถว gate แทนโค้ดที่ซ้ำ พร้อม test (5/6 เมื่อตก D/E, 4/4 สำหรับธนาคาร, 0/1 เมื่อไม่มี quality) ตรวจด้วย `bun test` ผ่านทั้งชุด (รวม `llm-export.test.ts` ที่ผลไม่เปลี่ยน) และ `bun run lint`
-- [ ] 2.3 เพิ่มคอลัมน์ "Gates" หลัง Sector ใน `app/page.tsx` พร้อม `Tooltip` รายการเกณฑ์ที่ไม่ผ่าน (D4) และแสดง `ผ่าน N/M` ที่หัวข้อ Gates ใน `app/stocks/[symbol]/page.tsx` ตรวจด้วย `bun run lint` และเปิด browser ด้วย skill `orca-browser-check` ดูว่าตารางแสดงจำนวน, hover เห็นเกณฑ์ที่ไม่ผ่าน, หน้ารายละเอียดตรงกับตาราง และ run เก่าไม่พัง
+- [x] 2.3 เพิ่มคอลัมน์ "Gates" หลัง Sector ใน `app/page.tsx` พร้อม `Tooltip` รายการเกณฑ์ที่ไม่ผ่าน (D4) และแสดง `ผ่าน N/M` ที่หัวข้อ Gates ใน `app/stocks/[symbol]/page.tsx` ตรวจด้วย `bun run lint` และเปิด browser ด้วย skill `orca-browser-check` ดูว่าตารางแสดงจำนวน, hover เห็นเกณฑ์ที่ไม่ผ่าน, หน้ารายละเอียดตรงกับตาราง และ run เก่าไม่พัง
 
 ## 3. ตรวจกับ batch จริง
 
-- [ ] 3.1 บันทึก candidate list ของ run ล่าสุดไว้เทียบ แล้วรัน batch ใหม่ด้วย default 2 ตรวจว่า run สำเร็จ ทุกหุ้นที่เคยอยู่ใน list ยังอยู่ (gate หลวมขึ้นอย่างเดียว) และลำดับของหุ้นเดิมเทียบกันยังตามกฎ CDC → ETA → MoS นับหุ้นใหม่ที่เข้ามาแยกตามเกณฑ์ที่ตก และระบุหุ้นที่ตกทั้ง ROE และไม่ขาดทุน (worst case ใน design) ตรวจด้วย skill `stock-sanity-check`
-- [ ] 3.2 spot-check หุ้นใหม่อย่างน้อย 3 ตัว (รวมหุ้นการเงิน 1 ตัวถ้ามี) ว่า D/E, ROE TTM, OCF และกำไรรายไตรมาสของเกณฑ์ที่ตกตรงกับงบบน SET และจำนวนในคอลัมน์ Gates ตรงกับหน้ารายละเอียด บันทึกผลและหุ้นที่เข้ามาใหม่ใน `engine/README.md`
+- [x] 3.1 บันทึก candidate list ของ run ล่าสุดไว้เทียบ แล้วรัน batch ใหม่ด้วย default 2 ตรวจว่า run สำเร็จ ทุกหุ้นที่เคยอยู่ใน list ยังอยู่ (gate หลวมขึ้นอย่างเดียว) และลำดับของหุ้นเดิมเทียบกันยังตามกฎ CDC → ETA → MoS นับหุ้นใหม่ที่เข้ามาแยกตามเกณฑ์ที่ตก และระบุหุ้นที่ตกทั้ง ROE และไม่ขาดทุน (worst case ใน design) ตรวจด้วย skill `stock-sanity-check`
+- [x] 3.2 spot-check หุ้นใหม่อย่างน้อย 3 ตัว (รวมหุ้นการเงิน 1 ตัวถ้ามี) ว่า D/E, ROE TTM, OCF และกำไรรายไตรมาสของเกณฑ์ที่ตกตรงกับงบบน SET และจำนวนในคอลัมน์ Gates ตรงกับหน้ารายละเอียด บันทึกผลและหุ้นที่เข้ามาใหม่ใน `engine/README.md`

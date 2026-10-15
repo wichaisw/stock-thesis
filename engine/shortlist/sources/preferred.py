@@ -9,7 +9,7 @@ def overlay(base: pd.DataFrame, preferred: pd.DataFrame) -> tuple[pd.DataFrame, 
     """Preferred values win, but only on quarters `base` already has and cells `preferred` has a value for (design D2).
     The flag says whether any preferred value landed, even one equal to the base value."""
     aligned = preferred.reindex(index=base.index, columns=preferred.columns.intersection(base.columns))
-    out = base.copy()
+    out = base.astype({c: "float64" for c in aligned.columns})  # thaifin can return int columns; update() won't write floats into them
     out.update(aligned)
     return out, bool(aligned.notna().any().any())
 

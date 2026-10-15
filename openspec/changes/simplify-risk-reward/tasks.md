@@ -19,7 +19,7 @@
 
 ## 4. Integration
 
-- [ ] 4.1 รัน batch ใหม่ ตรวจว่า EA, TPCH, SRICHA ติดป้าย upside สูงผิดปกติ, NSL (upside ~49%) ไม่ติด, จำนวน candidates เท่าเดิมเมื่อข้อมูลเท่าเดิม (batch นี้รวม Justified PBV ของ `add-fair-value-methods` และงบจาก yfinance ของ `prefer-yfinance-statements` แล้วตามที่ผู้ใช้เลือก 15 ต.ค. 2026 จำนวน candidates จึงอาจเปลี่ยนจากสองเหตุนั้น ให้อธิบายหุ้นที่เข้าหรือหลุดแทน) และ entry/target ของหุ้นที่ spot-check ตรงกับราคาปิดบน SET/TradingView
+- [x] 4.1 รัน batch ใหม่ ตรวจว่า EA, TPCH, SRICHA ติดป้าย upside สูงผิดปกติ, NSL (upside ~49%) ไม่ติด, จำนวน candidates เท่าเดิมเมื่อข้อมูลเท่าเดิม (batch นี้รวม Justified PBV ของ `add-fair-value-methods` และงบจาก yfinance ของ `prefer-yfinance-statements` แล้วตามที่ผู้ใช้เลือก 15 ต.ค. 2026 จำนวน candidates จึงอาจเปลี่ยนจากสองเหตุนั้น ให้อธิบายหุ้นที่เข้าหรือหลุดแทน) และ entry/target ของหุ้นที่ spot-check ตรงกับราคาปิดบน SET/TradingView
 - [x] 4.2 เปิดหน้า settings ใน browser ตรวจว่าไม่มีช่องระยะถือ มีช่อง upside สูงสุด และบันทึกค่าได้
 
 ## Workflow follow-up

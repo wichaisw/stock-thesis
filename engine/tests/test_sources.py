@@ -380,6 +380,13 @@ def test_preferred_statements_win_on_the_quarters_they_have():
     assert src.overlaid == {"PTT"}
 
 
+def test_preferred_overlays_integer_base_columns():
+    base = thaifin_quarters(["2026Q2"]).astype({"net_profit": "int64", "equity": "int64"})  # thaifin gives ints for GROREIT, TRT, UTP
+    yahoo = pd.DataFrame({"net_profit": [2.5], "equity": [3.5]}, index=["2026Q2"])
+    df = PreferredStatements(FakeFinancials([], {"PTT": base}), lambda _: yahoo).fetch_quarterly("PTT")
+    assert (df.loc["2026Q2", "net_profit"], df.loc["2026Q2", "equity"]) == (2.5, 3.5)
+
+
 def test_preferred_gap_falls_back_to_base():
     yahoo = pd.DataFrame({"net_profit": [2.0], "equity": [np.nan]}, index=["2026Q1"])
     df = PreferredStatements(FakeFinancials([], {"PTT": thaifin_quarters(["2026Q1"])}), lambda _: yahoo).fetch_quarterly("PTT")

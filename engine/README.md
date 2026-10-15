@@ -52,6 +52,22 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 
 ## ผลตรวจข้อมูล
 
+### Joint batch ราคาปิด 15 ต.ค. 2026 (change `add-fair-value-methods` task 5.1–5.2, `prefer-yfinance-statements` task 3.1–3.2)
+
+สาม run บนราคาปิดเดียวกัน (ราคาและวันที่ราคาตรงกันทุกตัว, ราคาไม่อัปเดต 72 ตัวเท่ากัน, ประเมินได้ 922/930): A = 3a1a545 (ไม่มี Justified PBV, งบ thaifin) 16 candidates, B = bb88704 (มี Justified PBV, งบ thaifin) 15 ตัว, C = run 34 บน d69ba27 (งบ yfinance ก่อน) 14 ตัว ใช้เวลา 282 วินาที log บอก "ใช้กำไรและส่วนผู้ถือหุ้นจาก yfinance 236 ตัว" (จาก 249 ตัวที่ผ่าน liquidity)
+- A→B: เข้า NCAP (median MoS 8.2% → 17.8%), NER (−4.1% → 13.2%) หลุด DITTO (17.8% → −7.3%), KLINIQ (10.4% → 6.7%), SAPPE (23.9% → 8.2%) ทุกตัวเพราะ Justified PBV เพิ่ม view ที่ทำให้ median ข้ามเกณฑ์ 10%
+- B→C: หลุด TIDLOR (11.8% → 7.6%) จากกำไรและส่วนผู้ถือหุ้นของ yfinance
+- run C รอบแรก (run 33) GROREIT, TRT, UTP ตกเพราะ thaifin ให้คอลัมน์เป็น int และ `update()` ไม่ยอมเขียนค่าทศนิยมทับ แก้ใน d69ba27 แล้วรันใหม่
+- stock-sanity-check: B และ C ติดธง 101 ตัวเท่ากัน ต่างแค่ค่า MoS ของ peer_pe/PE band ไม่มี candidate ติดธง Justified PBV MoS ต่ำกว่า −100% 34 ตัว 27 ตัว ROE TTM ต่ำกว่า 10% (ROE ใกล้ g ทำให้ fair value เหลือเศษของ book) ที่ผ่าน quality มี GULF, AOT, CBG, DELTA (PBV สูง) สูตรถูก (ตรวจมือด้านล่าง) ผู้ใช้เลือก 15 ต.ค. 2026 ยอมรับเป็นพฤติกรรมของโมเดล ค่าต่ำทำได้แค่กันหุ้นไม่ให้ผ่าน gate ไม่ทำให้หุ้นผ่านผิด
+
+spot-check ด้วยมือจากงบบน SET (`company-highlight/financial-data` FY2025 และ 6M2026 ตรงกับผลรวมรายไตรมาสของ engine ทั้งกำไรและส่วนผู้ถือหุ้น) และหน้ารายละเอียด
+
+| หุ้น | ROE TTM มือ / หน้าเว็บ | Justified PBV มือ / หน้าเว็บ | หมายเหตุ |
+|---|---|---|---|
+| KBANK | 8.79% / 8.8% | 201.13 / 201.18 | ธนาคาร ไม่ผ่าน ROE |
+| PTTEP | 12.98% / 13.0% | 203.75 / 203.84 | รายงานเป็น USD ใช้ thaifin ตาม D4 |
+| NSL | 26.21% / 26.2% | 25.71 / 25.71 | candidate #1 |
+
 ### EPS ของ thaifin เทียบ SET และการปรับตาม split (change `fix-thaifin-owner-profit` task 1.1–1.2, 15 ต.ค. 2026)
 
 เทียบผลรวม EPS และ `net_profit` 4 ไตรมาสของ thaifin (cache ของ backtest 15 ต.ค.) กับงวดปีของ SET (`/api/set/stock/<SYM>/company-highlight/financial-data` แถว `Q9`, in-page fetch ใน Orca) เกณฑ์ผ่านของ EPS: ต่างไม่เกิน 0.01 บาทต่อไตรมาส หรือต่างเท่ากับ factor ของ split หลังงวด

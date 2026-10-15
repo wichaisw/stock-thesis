@@ -20,8 +20,8 @@
 
 ## 5. Integration
 
-- [ ] 5.1 บันทึก candidate list และ median MoS ของ run ล่าสุดไว้เทียบ แล้วรัน batch ใหม่ ตรวจว่า run สำเร็จ และสรุปแสดง "x/5 undervalued" เมื่อเปิดครบ 6 เกณฑ์ ตรวจด้วย skill `stock-sanity-check` (ไม่มี MoS ต่ำกว่า −100% หรือ fair value สูงผิดปกติจากเกณฑ์ใหม่)
-- [ ] 5.2 spot-check อย่างน้อย 3 หุ้น (รวมหุ้นธนาคาร 1 ตัว) คำนวณ Justified PBV ด้วยมือจากงบบน SET ให้ตรงกับหน้ารายละเอียดภายใน 1% และอธิบายหุ้นที่เข้าหรือหลุดจาก candidate list เทียบกับ 5.1 บันทึกใน `engine/README.md`
+- [x] 5.1 บันทึก candidate list และ median MoS ของ run ล่าสุดไว้เทียบ แล้วรัน batch ใหม่ ตรวจว่า run สำเร็จ และสรุปแสดง "x/5 undervalued" เมื่อเปิดครบ 6 เกณฑ์ ตรวจด้วย skill `stock-sanity-check` (ไม่มี MoS ต่ำกว่า −100% หรือ fair value สูงผิดปกติจากเกณฑ์ใหม่)
+- [x] 5.2 spot-check อย่างน้อย 3 หุ้น (รวมหุ้นธนาคาร 1 ตัว) คำนวณ Justified PBV ด้วยมือจากงบบน SET ให้ตรงกับหน้ารายละเอียดภายใน 1% และอธิบายหุ้นที่เข้าหรือหลุดจาก candidate list เทียบกับ 5.1 บันทึกใน `engine/README.md`
 
 ## Workflow follow-up
 

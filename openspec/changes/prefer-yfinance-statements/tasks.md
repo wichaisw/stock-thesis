@@ -12,5 +12,5 @@
 
 ## 3. Integration
 
-- [ ] 3.1 ใช้ batch เดียวกับ `add-fair-value-methods` ข้อ 5.1 ได้ (ผู้ใช้เลือก 15 ต.ค. 2026) เทียบกับ run ก่อน batch ของ `simplify-risk-reward` ข้อ 4.1 ซึ่งยังใช้งบ thaifin ล้วน บันทึก candidate list, median MoS และเวลา batch ของ run นั้นไว้เทียบ แล้วรัน batch ใหม่ ตรวจว่า run สำเร็จ เวลาไม่เกินเพดาน และ log บอกจำนวนหุ้นที่ใช้งบจาก yfinance ตรวจด้วย skill `stock-sanity-check`
-- [ ] 3.2 spot-check อย่างน้อย 3 หุ้น (รวมหุ้นธนาคาร 1 ตัว และหุ้นที่รายงานงบเป็น USD 1 ตัวถ้าผ่าน liquidity) คำนวณ ROE TTM และ Justified PBV ด้วยมือจากงบบน SET ให้ตรงกับหน้ารายละเอียดภายใน 1% เปิดหน้ารายละเอียดใน browser ด้วย skill `orca-browser-check` และอธิบายหุ้นที่เข้าหรือหลุดจาก candidate list เทียบกับ 3.1 บันทึกใน `engine/README.md`
+- [x] 3.1 ใช้ batch เดียวกับ `add-fair-value-methods` ข้อ 5.1 ได้ (ผู้ใช้เลือก 15 ต.ค. 2026) เทียบกับ run ก่อน batch ของ `simplify-risk-reward` ข้อ 4.1 ซึ่งยังใช้งบ thaifin ล้วน บันทึก candidate list, median MoS และเวลา batch ของ run นั้นไว้เทียบ แล้วรัน batch ใหม่ ตรวจว่า run สำเร็จ เวลาไม่เกินเพดาน และ log บอกจำนวนหุ้นที่ใช้งบจาก yfinance ตรวจด้วย skill `stock-sanity-check`
+- [x] 3.2 spot-check อย่างน้อย 3 หุ้น (รวมหุ้นธนาคาร 1 ตัว และหุ้นที่รายงานงบเป็น USD 1 ตัวถ้าผ่าน liquidity) คำนวณ ROE TTM และ Justified PBV ด้วยมือจากงบบน SET ให้ตรงกับหน้ารายละเอียดภายใน 1% เปิดหน้ารายละเอียดใน browser ด้วย skill `orca-browser-check` และอธิบายหุ้นที่เข้าหรือหลุดจาก candidate list เทียบกับ 3.1 บันทึกใน `engine/README.md`

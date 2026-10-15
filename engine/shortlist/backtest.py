@@ -6,6 +6,7 @@ known at T (design D2), and the outcome is read from the 63 trading days after T
 
 import math
 import random
+import statistics
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -16,8 +17,13 @@ from shortlist.core import fair_value, quality
 from shortlist.sources import StockInfo
 
 HORIZON = 63
+# 63 stays the thesis horizon; the longer ones only show whether a high MoS was wrong or just slow (design D2)
+HORIZONS = (HORIZON, 126, 252)
 MEDIAN = "median"  # the panel's median MoS, scored like a method
 CANDIDATE = "candidate"  # quality passed and median MoS ≥ candidates.min_median_mos
+RELATIVE = "candidate (relative)"  # quality passed and median MoS in the date's top RELATIVE_TOP (design D4)
+RELATIVE_TOP = 0.20
+BOOTSTRAP = 2000
 # same rules as the stock-sanity-check skill
 ABNORMAL_MOS = -1.0
 ABNORMAL_FV_TO_PRICE = 5.0
@@ -34,6 +40,8 @@ LIMITATIONS = [
     "จำนวนหุ้นจาก yfinance เริ่ม พ.ย. 2018 วันที่ทดสอบช่วงต้นมีจุดใน band น้อยกว่า 20 (ดูจำนวนที่คำนวณได้ต่อวันที่)",
     "ตัดหุ้นที่ split, ปันผลเป็นหุ้น หรือ merge ออกทั้งตัว ผลจึงเป็นของหุ้นที่เหลือเท่านั้น",
     "ไม่จำลองการเทรด ไม่มีค่าธรรมเนียม slippage stop หรือ CDC",
+    "ที่ 126 และ 252 วัน ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน excess ต่อวันที่จึงไม่เป็นอิสระ t และช่วงความเชื่อมั่นดูแน่นอนกว่าจริง",
+    "เทียบหลายกลุ่มหลายระยะ (ราว 48 ช่วงความเชื่อมั่น) ราว 2 ช่วงจะไม่คร่อม 0 ได้โดยบังเอิญ ตัวตัดสินหลักคือตารางผลรวม 63 วัน",
 ]
 
 
@@ -136,7 +144,16 @@ def evaluate_date(
                 "date": t, "symbol": sym, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
                 "quality_passed": passed, "candidate": candidate, "abnormal": abnormal(value, mos, price[sym]),
             })
+    top = top_share({r["symbol"]: r["mos"] for r in rows if r["method"] == MEDIAN})
+    for r in rows:
+        r["relative"] = r["quality_passed"] and r["symbol"] in top
     return rows, skipped
+
+
+def top_share(mos: dict[str, float | None]) -> set[str]:
+    """Symbols whose MoS ranks in the top RELATIVE_TOP of those that have one (design D4)."""
+    ranks = pd.Series({k: v for k, v in mos.items() if v is not None}, dtype=float).rank(pct=True)
+    return set(ranks[ranks > 1 - RELATIVE_TOP].index)
 
 
 def outcome(prices: pd.DataFrame, t: pd.Timestamp, horizon: int = HORIZON) -> tuple[float, float] | None:
@@ -149,12 +166,19 @@ def outcome(prices: pd.DataFrame, t: pd.Timestamp, horizon: int = HORIZON) -> tu
     return float(adj.iloc[i + horizon - 1] / adj.iloc[i - 1] - 1), float(prices["high"].iloc[i : i + horizon].max())
 
 
-def with_outcomes(rows: pd.DataFrame, prices: dict[str, pd.DataFrame], horizon: int = HORIZON) -> pd.DataFrame:
-    keys = rows[["symbol", "date"]].drop_duplicates()
-    got = {(sym, t): outcome(prices[sym], t, horizon) for sym, t in keys.itertuples(index=False)}
+def ret_col(horizon: int) -> str:
+    return "ret" if horizon == HORIZON else f"ret_{horizon}"
+
+
+def with_outcomes(rows: pd.DataFrame, prices: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """`ret` and `max_high` at HORIZON, and `ret_<h>` at each longer horizon."""
+    keys = list(zip(rows["symbol"], rows["date"]))
     out = rows.copy()
-    out["ret"] = [(got[k] or (None, None))[0] for k in zip(rows["symbol"], rows["date"])]
-    out["max_high"] = [(got[k] or (None, None))[1] for k in zip(rows["symbol"], rows["date"])]
+    for h in HORIZONS:
+        got = {k: outcome(prices[k[0]], k[1], h) for k in set(keys)}
+        out[ret_col(h)] = [(got[k] or (None, None))[0] for k in keys]
+        if h == HORIZON:
+            out["max_high"] = [(got[k] or (None, None))[1] for k in keys]
     return out
 
 
@@ -169,9 +193,10 @@ def groups(rows: pd.DataFrame, min_mos: float) -> dict[str, pd.DataFrame]:
         g = rows[(rows["method"] == method) & rows["mos"].notna()].copy()
         g["selected"] = g["mos"] >= min_mos
         out[method] = g
-    g = rows[rows["method"] == MEDIAN].copy()
-    g["selected"] = g["candidate"]
-    out[CANDIDATE] = g
+    for name, flag in [(CANDIDATE, "candidate"), (RELATIVE, "relative")]:
+        g = rows[rows["method"] == MEDIAN].copy()
+        g["selected"] = g[flag]
+        out[name] = g
     return out
 
 
@@ -186,43 +211,71 @@ def shuffled(g: pd.DataFrame, seed: int) -> pd.DataFrame:
     return out
 
 
-def excess(g: pd.DataFrame, baseline: pd.Series) -> dict:
+def excess(g: pd.DataFrame, baseline: pd.Series, ret: str = "ret", spread: bool = False) -> dict:
     """Per date: mean return of the selected stocks − that date's equal-weight baseline, then summarized
-    across dates so every quarter weighs the same (design D5)."""
-    per_date = g[g["selected"]].groupby("date")["ret"].mean() - baseline
+    across dates so every quarter weighs the same (design D5). `spread` adds t and the 95% CI."""
+    per_date = g[g["selected"]].groupby("date")[ret].mean() - baseline
     per_date = per_date.dropna()
-    if per_date.empty:
-        return {"dates": 0, "mean": None, "median": None, "positive": None}
-    return {
-        "dates": len(per_date),
-        "mean": float(per_date.mean()),
-        "median": float(per_date.median()),
-        "positive": float((per_date > 0).mean()),
-    }
+    out = {"dates": len(per_date), "mean": None, "median": None, "positive": None}
+    if len(per_date):
+        out |= {
+            "mean": float(per_date.mean()),
+            "median": float(per_date.median()),
+            "positive": float((per_date > 0).mean()),
+        }
+    return out | uncertainty(per_date.tolist()) if spread else out
 
 
-def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.DataFrame]:
-    """`rows` from evaluate_date + with_outcomes. Evaluations whose horizon has not passed are not counted."""
-    uncomputed = rows[rows["fair_value"].isna()].groupby("method").size()
-    done = rows[rows["ret"].notna()]
-    baseline = done[done["method"] == MEDIAN].groupby("date")["ret"].mean()
-    summary, buckets = [], []
+def uncertainty(x: list[float], seed: int = 0) -> dict:
+    """t of the mean and its 95% CI by resampling dates (design D1: no scipy for one quantile)."""
+    if len(x) < 2:
+        return {"t": None, "ci_low": None, "ci_high": None}
+    se = statistics.stdev(x) / math.sqrt(len(x))
+    rng = random.Random(seed)
+    cuts = statistics.quantiles([statistics.fmean(rng.choices(x, k=len(x))) for _ in range(BOOTSTRAP)], n=40)
+    return {"t": statistics.fmean(x) / se if se else None, "ci_low": cuts[0], "ci_high": cuts[-1]}
+
+
+def summarize(done: pd.DataFrame, baseline: pd.Series, min_mos: float, seed: int, uncomputed: pd.Series) -> pd.DataFrame:
+    """One summary row per group at HORIZON: evaluations, hit rate, excess with t/CI and its placebo."""
+    out = []
     for name, g in groups(done, min_mos).items():
-        up = g[g["selected"]] if name == CANDIDATE else g[g["mos"] > 0]
+        up = g[g["selected"]] if name in (CANDIDATE, RELATIVE) else g[g["mos"] > 0]
         hits = up["max_high"] >= up["fair_value"]
-        real = excess(g, baseline)
+        real = excess(g, baseline, spread=True)
         runs = [excess(shuffled(g, seed + i), baseline) for i in range(PLACEBO_SEEDS)]
         placebo = {k: runs[0][k] if k == "dates" or runs[0][k] is None else sum(r[k] for r in runs) / len(runs)
-                   for k in real}
-        summary.append({
+                   for k in runs[0]}
+        out.append({
             "group": name, "evaluations": len(g), "uncomputed": int(uncomputed.get(name, 0)),
             "hit_n": len(up), "hit_rate": float(hits.mean()) if len(up) else None,
             **{f"excess_{k}": v for k, v in real.items()},
             **{f"placebo_{k}": v for k, v in placebo.items()},
         })
-        if name == CANDIDATE:
+    return pd.DataFrame(out)
+
+
+def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.DataFrame]:
+    """`rows` from evaluate_date + with_outcomes. Evaluations whose horizon has not passed are not counted.
+    `clean` drops abnormal evaluations from the groups but keeps every stock in the baseline (design D3)."""
+    uncomputed = rows[rows["fair_value"].isna()].groupby("method").size()
+    baselines = {}
+    for h in HORIZONS:
+        col = ret_col(h)
+        baselines[h] = rows[(rows["method"] == MEDIAN) & rows[col].notna()].groupby("date")[col].mean()
+    baseline = baselines[HORIZON]
+    done = rows[rows["ret"].notna()]
+    by_horizon = []
+    for h in HORIZONS:
+        col = ret_col(h)
+        for name, g in groups(rows[rows[col].notna()], min_mos).items():
+            by_horizon.append({"group": name, "horizon": h, **excess(g, baselines[h], col, spread=True)})
+    buckets = []
+    for name, g in groups(done, min_mos).items():
+        if name in (CANDIDATE, RELATIVE):
             continue
-        g = g.assign(bucket=g["mos"].map(bucket), excess=g["ret"] - g["date"].map(baseline))
+        g = g.assign(bucket=g["mos"].map(bucket), excess=g["ret"] - g["date"].map(baseline),
+                     **{f"excess_{h}": g[ret_col(h)] - g["date"].map(baselines[h]) for h in HORIZONS[1:]})
         for _, _, label in BUCKETS:
             b = g[g["bucket"] == label]
             b_up = b[b["mos"] > 0]
@@ -231,8 +284,16 @@ def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.D
                 "hit_rate": float((b_up["max_high"] >= b_up["fair_value"]).mean()) if len(b_up) else None,
                 "median_ret": float(b["ret"].median()) if len(b) else None,
                 "median_excess": float(b["excess"].median()) if len(b) else None,
+                **{f"median_excess_{h}": float(b[f"excess_{h}"].median()) if b[f"excess_{h}"].notna().any() else None
+                   for h in HORIZONS[1:]},
             })
-    return {"summary": pd.DataFrame(summary), "buckets": pd.DataFrame(buckets), "baseline": baseline}
+    return {
+        "summary": summarize(done, baseline, min_mos, seed, uncomputed),
+        "clean": summarize(done[~done["abnormal"]], baseline, min_mos, seed, uncomputed),
+        "horizons": pd.DataFrame(by_horizon),
+        "buckets": pd.DataFrame(buckets),
+        "baseline": baseline,
+    }
 
 
 def poison(s: StockData, t: pd.Timestamp, cfg: Catalyst) -> StockData:
@@ -284,6 +345,29 @@ def _rate(x: float | None) -> str:
     return "–" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:.0%}"
 
 
+def _ci(low: float | None, high: float | None) -> str:
+    return "–" if low is None else f"{_pct(low)} ถึง {_pct(high)}"
+
+
+def _t(x: float | None) -> str:
+    return "–" if x is None else f"{x:.2f}"
+
+
+SUMMARY_HEADER = ["กลุ่ม", "การประเมิน", "คำนวณไม่ได้", "hit (n)", "วันที่", "excess เฉลี่ย", "excess median",
+                  "% วันที่บวก", "95% CI", "t"]
+
+
+def _summary_rows(s: pd.DataFrame) -> list[list]:
+    out = []
+    for r in s.itertuples():
+        out.append([r.group, r.evaluations, r.uncomputed, f"{_rate(r.hit_rate)} ({r.hit_n})", r.excess_dates,
+                    _pct(r.excess_mean), _pct(r.excess_median), _rate(r.excess_positive),
+                    _ci(r.excess_ci_low, r.excess_ci_high), _t(r.excess_t)])
+        out.append([f"{r.group} (สลับ MoS)", "", "", "", r.placebo_dates, _pct(r.placebo_mean),
+                    _pct(r.placebo_median), _rate(r.placebo_positive), "", ""])
+    return out
+
+
 def _table(header: list[str], rows: list[list]) -> str:
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     lines += ["| " + " | ".join(str(c) for c in r) + " |" for r in rows]
@@ -313,22 +397,22 @@ def report(
         by_reason["split/ปันผลเป็นหุ้น" if reason.startswith("split") else "ส่วนผู้ถือหุ้นเปลี่ยน"] += 1
     share = len(excluded) / universe if universe else 0.0
 
-    s = result["summary"]
-    summary_rows = []
-    for r in s.itertuples():
-        summary_rows.append([r.group, r.evaluations, r.uncomputed, f"{_rate(r.hit_rate)} ({r.hit_n})",
-                             r.excess_dates, _pct(r.excess_mean), _pct(r.excess_median), _rate(r.excess_positive)])
-        summary_rows.append([f"{r.group} (สลับ MoS)", "", "", "", r.placebo_dates, _pct(r.placebo_mean),
-                             _pct(r.placebo_median), _rate(r.placebo_positive)])
+    longer = HORIZONS[1:]
+    horizon_rows = [[r.group, r.horizon, r.dates, _pct(r.mean), _ci(r.ci_low, r.ci_high), _t(r.t)]
+                    for r in result["horizons"].sort_values(["group", "horizon"], kind="stable").itertuples()]
     bucket_rows = [[r.group, r.bucket, r.n, _rate(r.hit_rate), _pct(r.median_ret), _pct(r.median_excess)]
+                   + [_pct(getattr(r, f"median_excess_{h}")) for h in longer]
                    for r in result["buckets"].itertuples()]
     methods = [m for m in fv.enabled]
     computed = rows[rows["fair_value"].notna()].groupby(["date", "method"]).size()
     per_date = []
     for t in dates:
         day = evaluated[evaluated["date"] == t]
-        per_date.append([f"{t:%Y-%m-%d}", len(day), len(skipped.get(t, {})), int(day["candidate"].sum()),
-                         _pct(result["baseline"].get(t))] + [int(computed.get((t, m), 0)) for m in methods])
+        n_cand, n_rel = int(day["candidate"].sum()), int(day["relative"].sum())
+        per_date.append([f"{t:%Y-%m-%d}", len(day), len(skipped.get(t, {})), n_cand,
+                         _pct(result["baseline"].get(t))] + [int(computed.get((t, m), 0)) for m in methods]
+                        + [_rate(n_cand / len(day) if len(day) else None), n_rel,
+                           _rate(n_rel / len(day) if len(day) else None)])
     odd = rows[rows["abnormal"]].sort_values(["date", "symbol", "method"])
     odd_rows = [[f"{r.date:%Y-%m-%d}", r.symbol, r.method, f"{r.price:,.2f}", f"{r.fair_value:,.2f}", _pct(r.mos, 0)]
                 for r in odd.itertuples()]
@@ -339,9 +423,11 @@ def report(
         "\n".join([
             f"- commit: `{commit}`",
             f"- วันที่ของ cache: {meta['cache_date']}",
-            f"- วันที่ทดสอบ: {dates[0]:%Y-%m-%d} ถึง {dates[-1]:%Y-%m-%d} ({len(dates)} วัน สิ้นไตรมาส) วัดผลที่ {HORIZON} วันทำการ",
+            f"- วันที่ทดสอบ: {dates[0]:%Y-%m-%d} ถึง {dates[-1]:%Y-%m-%d} ({len(dates)} วัน สิ้นไตรมาส) วัดผลที่ {HORIZON} วันทำการ "
+            f"(ตัวประกอบ {', '.join(str(h) for h in longer)} วัน)",
             f"- เกณฑ์: liquidity ≥ {cfg.liquidity.min_avg_traded_value / 1e6:,.0f} ลบ./วัน ({cfg.liquidity.window_days} วัน), "
-            f"candidate = ผ่าน quality และ median MoS ≥ {cand.min_median_mos:.0%}, method {', '.join(fv.enabled)}, "
+            f"candidate = ผ่าน quality และ median MoS ≥ {cand.min_median_mos:.0%}, "
+            f"candidate (relative) = ผ่าน quality และ median MoS อยู่ใน {RELATIVE_TOP:.0%} บนของวันนั้น, method {', '.join(fv.enabled)}, "
             f"lookback {fv.lookback_quarters} ไตรมาส, min_history_points {fv.min_history_points}, "
             f"structure_change_threshold {fv.structure_change_threshold:.0%}, กำหนดส่งงบ {cfg.catalyst.quarter_deadline_days} วัน "
             f"(Q4 {cfg.catalyst.annual_deadline_days} วัน)",
@@ -355,13 +441,24 @@ def report(
         "## ผลรวม",
         "hit = High สูงสุดใน 63 วันถึง fair value นับเฉพาะ MoS > 0 (candidate: นับทุกตัวเทียบ median fair value) "
         "excess = ผลตอบแทนรวมปันผลของกลุ่ม MoS ≥ เกณฑ์ − ค่าเฉลี่ยของหุ้นทุกตัวที่ประเมินได้ในวันเดียวกัน คิดต่อวันที่แล้วสรุปข้ามวัน",
-        _table(["กลุ่ม", "การประเมิน", "คำนวณไม่ได้", "hit (n)", "วันที่", "excess เฉลี่ย", "excess median", "% วันที่บวก"],
-               summary_rows),
+        f"95% CI = ช่วงความเชื่อมั่นของ excess เฉลี่ย จากการสุ่มวันที่ใส่คืน {BOOTSTRAP:,} รอบ, "
+        "t = excess เฉลี่ย ÷ standard error ของ excess ต่อวันที่",
+        _table(SUMMARY_HEADER, _summary_rows(result["summary"])),
+        "## ผลรวมแบบไม่นับค่าผิดปกติ",
+        f"ตัดการประเมินที่ MoS < {ABNORMAL_MOS:.0%} หรือ fair value > {ABNORMAL_FV_TO_PRICE:g}× ราคา ออกจากกลุ่ม "
+        "baseline ยังเป็นหุ้นทุกตัวที่ประเมินได้",
+        _table(SUMMARY_HEADER, _summary_rows(result["clean"])),
+        "## ต่อระยะวัดผล",
+        f"excess ของกลุ่มที่ {', '.join(str(h) for h in HORIZONS)} วันทำการ baseline คิดใหม่ต่อระยะ "
+        f"วันที่ที่ยังไม่ครบระยะไม่ถูกนับ {HORIZON} วันเป็นตัววัดหลัก",
+        _table(["กลุ่ม", "วันทำการ", "วันที่", "excess เฉลี่ย", "95% CI", "t"], horizon_rows),
         "## แยกตาม bucket ของ MoS",
-        _table(["กลุ่ม", "MoS", "n", "hit", "median ผลตอบแทน", "median excess"], bucket_rows),
+        _table(["กลุ่ม", "MoS", "n", "hit", "median ผลตอบแทน", "median excess"]
+               + [f"median excess {h} วัน" for h in longer], bucket_rows),
         "## ต่อวันที่ทดสอบ",
         "จำนวนที่คำนวณได้ต่อ method (วันที่ช่วงต้นมีจุดใน band น้อยกว่า 20)",
-        _table(["วันที่", "ประเมิน", "ข้าม (cap ขาด)", "candidate", "baseline"] + methods, per_date),
+        _table(["วันที่", "ประเมิน", "ข้าม (cap ขาด)", "candidate", "baseline"] + methods
+               + ["candidate %", "relative", "relative %"], per_date),
         f"## หุ้นที่ตัด ({len(excluded)} ตัว, {share:.0%})",
         ", ".join(f"{k} {v} ตัว" for k, v in by_reason.items()),
         _table(["หุ้น", "เหตุผล"], [[k, v] for k, v in sorted(excluded.items())]) if excluded else "ไม่มี",

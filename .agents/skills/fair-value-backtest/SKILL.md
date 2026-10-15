@@ -30,6 +30,10 @@ Runs `fair_value.evaluate` and `quality.evaluate` as of each quarter end, using 
 | สลับ MoS (placebo) | The same excess after shuffling MoS among the stocks of each date, averaged over 20 shuffles | Near 0. If not, the measurement itself is biased: don't trust the real rows |
 | bucket | Count, hit rate, median return and median excess per MoS bucket (< 0, 0–10%, 10–30%, ≥ 30%) | Returns rising with MoS means the method ranks stocks |
 | candidate | Passed quality and median MoS ≥ `min_median_mos` (CDC is not part of it) | Excess > 0 is the evidence behind "the profit comes from fundamentals and MoS" |
+| 95% CI, t | Range of the mean excess from resampling the test dates 2,000 times, and mean ÷ standard error across dates | CI above 0 (or t above ~2). With about 48 CIs in one file, about 2 clear 0 by chance: one alone is a hypothesis, not proof |
+| candidate (relative) | Passed quality and median MoS in the top 20% of that date's evaluated stocks, no MoS floor. Backtest only | Beats `candidate` on the 63-day row and in the clean table, with a placebo near 0. The per-date `candidate %` column shows how far the absolute gate drifts |
+| ผลรวมแบบไม่นับค่าผิดปกติ | The summary again with abnormal evaluations dropped from each group, same baseline | A group that wins only in the main table is winning on bad data |
+| ต่อระยะวัดผล | Excess, CI and t at 63, 126 and 252 trading days; the bucket table adds median excess at 126 and 252 | 63 days decides (the thesis). Longer windows overlap, so their t looks better than it is. High-MoS buckets turning positive only at 252 means slow, not wrong |
 | คำนวณไม่ได้ | The method gave no fair value | Early dates have fewer band points, since share counts start in Nov 2018 |
 | ค่าประเมินผิดปกติ | MoS < −100% or fair value > 5× price. Still counted in every metric | The same bugs `stock-sanity-check` hunts for |
 

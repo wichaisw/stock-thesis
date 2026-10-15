@@ -159,11 +159,14 @@ def test_outcome_reads_63_trading_days_after_t():
     assert bt.outcome(p, pd.Timestamp("2023-12-01")) is None  # horizon not passed yet
 
 
-def frame(rows: list[tuple]) -> pd.DataFrame:
-    """(date, symbol, method, mos, fair_value, ret, max_high, candidate)"""
+def frame(rows: list[tuple], **extra) -> pd.DataFrame:
+    """(date, symbol, method, mos, fair_value, ret, max_high, candidate); `extra` overrides the other columns."""
     cols = ["date", "symbol", "method", "mos", "fair_value", "ret", "max_high", "candidate"]
     df = pd.DataFrame(rows, columns=cols)
     df["date"] = pd.to_datetime(df["date"])
+    defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False}
+    for col, value in (defaults | extra).items():
+        df[col] = value
     return df
 
 
@@ -223,6 +226,87 @@ def test_placebo_shuffle_is_near_zero_when_selection_is_informative():
     assert again["placebo_mean"] == s["placebo_mean"]  # fixed seed
 
 
+def test_uncertainty_matches_the_t_formula_and_repeats():
+    x = [0.01, 0.03, -0.02, 0.05, 0.00, 0.02]
+    u = bt.uncertainty(x)
+    se = np.std(x, ddof=1) / np.sqrt(len(x))
+    assert u["t"] == pytest.approx(np.mean(x) / se)
+    assert u["ci_low"] < np.mean(x) < u["ci_high"]
+    assert bt.uncertainty(x) == u  # fixed seed
+    assert bt.uncertainty([0.05]) == {"t": None, "ci_low": None, "ci_high": None}
+
+
+def test_summary_has_t_and_ci_but_placebo_does_not_need_them():
+    pe = bt.metrics(known_rows(), 0.10)["summary"].set_index("group").loc["pe_median"]
+    assert pe["excess_t"] == pytest.approx(0.075 / (np.std([0.10, 0.05], ddof=1) / np.sqrt(2)))
+    assert pe["excess_ci_low"] <= 0.075 <= pe["excess_ci_high"]
+    one_date = bt.metrics(known_rows()[lambda d: d["date"] == "2023-03-31"], 0.10)["summary"]
+    assert one_date.set_index("group").loc["pe_median", "excess_t"] is None
+
+
+def test_clean_drops_abnormal_from_the_group_but_not_the_baseline():
+    rows = known_rows()
+    rows.loc[(rows["symbol"] == "A") & (rows["date"] == "2023-03-31"), "abnormal"] = True  # fv > 5× price
+    m = bt.metrics(rows, 0.10)
+    assert m["summary"].set_index("group").loc["pe_median", "excess_dates"] == 2
+    clean = m["clean"].set_index("group")
+    assert clean.loc["pe_median", "excess_dates"] == 1  # A was the only pick on day 1
+    assert clean.loc["pe_median", "excess_mean"] == pytest.approx(0.05)  # day 2 against the same baseline 0.05
+    assert clean.loc[bt.CANDIDATE, "excess_dates"] == 1  # the median row of A was abnormal too
+
+
+def test_longer_horizon_counts_only_dates_that_reached_it():
+    rows = known_rows()
+    day1 = rows["date"] == "2023-03-31"
+    rows.loc[day1, "ret_126"] = rows.loc[day1, "ret"] * 2
+    rows.loc[day1, "ret_252"] = rows.loc[day1, "ret"] * 3
+    m = bt.metrics(rows, 0.10)
+    h = m["horizons"].set_index(["group", "horizon"])
+    assert h.loc[("pe_median", 63), "dates"] == 2
+    assert h.loc[("pe_median", 252), "dates"] == 1
+    assert h.loc[("pe_median", 252), "mean"] == pytest.approx(0.60 - 0.30)  # A 0.60 − baseline (0.60 + 0) / 2
+    assert m["summary"].set_index("group").loc["pe_median", "hit_n"] == 3  # hit stays at 63 days
+    b = m["buckets"]
+    top = b[(b["group"] == "pe_median") & (b["bucket"] == "≥ 30%")].iloc[0]
+    assert top["median_excess_252"] == pytest.approx(0.30)
+    assert pd.isna(b[(b["group"] == "pe_median") & (b["bucket"] == "0–10%")].iloc[0]["median_excess_252"])
+
+
+def test_with_outcomes_adds_longer_horizons():
+    p = prices(start="2023-01-02", end="2023-12-29")
+    after = p.index[p.index > T]
+    p.loc[after[125], "adj_close"] = 24.0
+    rows = pd.DataFrame([{"date": T, "symbol": "AAA"}])
+    out = bt.with_outcomes(rows, {"AAA": p}).iloc[0]
+    assert out["ret"] == pytest.approx(0.0) and out["ret_126"] == pytest.approx(1.0)
+    assert out["ret_252"] is None  # the year has fewer than 252 trading days after T
+
+
+def test_top_share_is_relative_and_ignores_missing():
+    mos = {f"S{i}": i / 10 - 0.9 for i in range(10)} | {"NONE": None}  # all negative but S9 (0.0)
+    assert bt.top_share(mos) == {"S8", "S9"}
+
+
+def test_relative_needs_quality_and_the_top_rank():
+    stocks = {sym: stock(sym, p=prices(close=close)) for sym, close in zip("ABCDE", [8, 10, 12, 14, 16])}
+    rows, _ = bt.evaluate_date(stocks, T, CFG)
+    med = {r["symbol"]: r for r in rows if r["method"] == bt.MEDIAN}
+    top = bt.top_share({k: r["mos"] for k, r in med.items()})
+    assert top == {"A"}  # 5 stocks, top 20%: the cheapest
+    assert {k for k, r in med.items() if r["relative"]} == {k for k in top if med[k]["quality_passed"]}
+    failing = quarters(eps=-1.0, net_profit=-1e9)  # a loss fails quality whatever the MoS
+    rows, _ = bt.evaluate_date(stocks | {"LOSS": stock("LOSS", q=failing)}, T, CFG)
+    assert not any(r["relative"] for r in rows if r["symbol"] == "LOSS")
+
+
+def test_relative_group_is_scored_like_candidate():
+    rows = known_rows()
+    rows.loc[(rows["symbol"] == "B") & (rows["date"] == "2023-03-31"), "relative"] = True
+    s = bt.metrics(rows, 0.10)["summary"].set_index("group")
+    assert s.loc[bt.RELATIVE, "hit_n"] == 1
+    assert s.loc[bt.RELATIVE, "excess_mean"] == pytest.approx(0.00 - 0.10)
+
+
 # 1.5 poison check
 
 
@@ -275,7 +359,11 @@ def test_report_has_every_section():
     for part in ["วันที่ของ cache: 2026-10-14", "2021-03-31 ถึง 2024-06-30 (14 วัน", "structure_change_threshold",
                  "ตัดออก 1 ตัว (17%)", "## ผลตรวจ look-ahead", "poison check ผ่าน 5 วัน", "(สลับ MoS)",
                  "## แยกตาม bucket ของ MoS", "## ต่อวันที่ทดสอบ", "SCAP", "## ค่าประเมินผิดปกติ", "XYZ",
-                 "survivorship bias", "restate", "thaifin อย่างเดียว", "ไม่เป็นอิสระ"]:
+                 "survivorship bias", "restate", "thaifin อย่างเดียว", "ไม่เป็นอิสระ",
+                 "| 95% CI | t |", "## ผลรวมแบบไม่นับค่าผิดปกติ", "## ต่อระยะวัดผล", "median excess 252 วัน",
+                 "| candidate % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
+                 "48 ช่วงความเชื่อมั่น"]:
         assert part in md, part
-    for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.CANDIDATE]:
+    for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.CANDIDATE, bt.RELATIVE]:
         assert f"| {method} |" in md, method
+    assert md.count("| candidate (relative) (สลับ MoS) |") == 2  # summary and clean

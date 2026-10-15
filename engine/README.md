@@ -83,6 +83,14 @@ spot-check PTT เจอว่ากำไรสุทธิ thaifin ในง�
 เทียบ `roe` และ `price_earning_ratio` ของ thaifin กับค่าที่คำนวณจาก `net_profit`, `equity`, `earning_per_share` และ `close` รายไตรมาสของ PTT, CPALL, KBANK (1Q25–2Q26)
 
 - **ROE = กำไรสุทธิไตรมาสนั้น × 4 / ส่วนผู้ถือหุ้นเฉลี่ยต้นและปลายไตรมาส** ตรงทุกไตรมาสทั้ง 3 ตัว เช่น PTT 2Q26 = 17.74% ทั้งสองทาง จึงเป็นค่า annualize จากไตรมาสเดียว ผันผวนตามไตรมาส (PTT 2Q26 แบบ TTM คือ 10.4% ไม่ใช่ 17.7%) quality gate จึงคำนวณ ROE TTM เอง (task 4.6)
+### Fair value backtest พร้อมช่วงความเชื่อมั่น (change `strengthen-fair-value-backtest` task 5.3, 15 ต.ค. 2026)
+
+cache และ `config.yaml` เดิม ตัวเลขเดิมทุกค่าตรงรอบแรก ไฟล์เดิมถูกเขียนทับด้วยส่วนใหม่ (ส่วน spot-check คงไว้)
+excess ต่อไตรมาสที่ 63 วัน (95% CI, t): peer_pe +1.8% (+0.8% ถึง +2.7%, t 3.47), justified_pbv +1.6% (+0.6% ถึง +2.6%, t 3.04) สองตัวนี้ CI ไม่คร่อม 0 ทั้งตารางเดิมและตารางไม่นับค่าผิดปกติ ส่วน pe_minus_1sd +1.9% (−1.3% ถึง +6.5%, t 0.95), candidate +0.5% (−0.7% ถึง +1.6%, t 0.90), median +0.2% (t 0.40), pe_median, pbv_median, dividend_yield_median CI คร่อม 0
+candidate (relative) (ผ่าน quality, median MoS 20% บน): +1.2% (−0.5% ถึง +2.8%, t 1.37) placebo +0.1% ดีกว่า candidate เดิมแต่ยังไม่ผ่าน สัดส่วน candidate เดิมไหลจาก 6% (2021Q1) ถึง 56% (2025Q2) ส่วน relative อยู่ที่ 12–17% ทุกวันที่
+ที่ 252 วัน (19 วันที่ ช่วงวัดผลซ้อนกัน t ดูดีเกินจริง): peer_pe +4.8% (t 5.44), justified_pbv +5.4% (t 5.19), candidate (relative) +4.1% (t 2.38), candidate +2.3% (t 1.98) bucket MoS ≥ 30% ของ median ยังติดลบที่ 252 วัน (−0.9%) MoS ที่สูงมากจึงไม่ใช่แค่ใช้เวลานาน ส่วน justified_pbv bucket 0–10% ให้ excess สูงสุด (+7.7% ที่ 252 วัน)
+ยังไม่เปลี่ยน gate หรือ method จากผลนี้ (stop rules ของ skill)
+
 - **PE ของ thaifin ใช้ทำ band ไม่ได้**: แถวเก่าคือ close / EPS สะสมตั้งแต่ต้นปี (PTT 1Q25 = 32 / 0.81 = 39.5, 2Q25 ≈ 30.5 / (0.81 + 0.76)) ส่วนแถวใหม่ใกล้ TTM แต่ไม่ตรง engine จึงคำนวณ PE = close / ผลรวม EPS 4 ไตรมาสเอง และ PBV = close / BVPS เอง
 - ข้อจำกัด: ตัวเลขกำไรและส่วนผู้ถือหุ้นมาจาก thaifin เอง ยังไม่ได้เทียบกับไฟล์งบบน SET
 

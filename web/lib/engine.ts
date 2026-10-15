@@ -37,6 +37,9 @@ export type Run = {
   succeeded: number | null;
   failed: number | null;
   error: string | null;
+  // absent in runs saved before the stale price check
+  stale_count?: number;
+  stale_date?: string | null;
 };
 
 export type CdcState = "bear-far" | "bear-approaching" | "just-crossed" | "bull";
@@ -75,6 +78,8 @@ export type Evaluation = {
   market: string;
   price: number;
   price_date: string;
+  // absent in runs saved before the stale price check
+  stale_price?: boolean;
   candidate_rank: number | null;
   liquidity: { passed: boolean; value: number; threshold: number; reason: string };
   quality: { passed: boolean; checks: Check[]; inflection: { flag: boolean; reason: string | null } } | null;

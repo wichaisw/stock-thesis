@@ -70,7 +70,7 @@ async function Detail({ params }: Pick<PageProps<"/stocks/[symbol]">, "params">)
         </p>
         {ev && (
           <p className="text-sm text-zinc-500">
-            ราคาปิด {baht(ev.price)} บาท วันที่ {thaiDate(ev.price_date)}
+            ราคาปิด {baht(ev.price)} บาท วันที่ {thaiDate(ev.price_date)} {ev.stale_price && <Tag tone="red">ราคาไม่อัปเดต</Tag>}
           </p>
         )}
       </div>

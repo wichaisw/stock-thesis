@@ -38,6 +38,11 @@ async function CandidateList() {
               {run.succeeded}/{run.total} ตัว
             </p>
           )}
+          {run?.stale_count ? (
+            <p role="status" className="text-sm text-amber-700 dark:text-amber-300">
+              ราคา {run.stale_count}/{run.succeeded} ตัวเป็นวันที่ {thaiDate(run.stale_date)}
+            </p>
+          ) : null}
         </div>
         <div className="ml-auto">
           <RunButton initial={runs.latest}>
@@ -157,6 +162,7 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                   )}
                   {rr.low_rrr && <Tag tone="red">RRR ต่ำ</Tag>}
                   {rr.high_upside && <Tag tone="red">upside สูงผิดปกติ</Tag>}
+                  {c.stale_price && <Tag tone="red">ราคาไม่อัปเดต</Tag>}
                   {c.fair_value!.structure_change.flag && (
                     <Tag tone="red" title={c.fair_value!.structure_change.reason ?? undefined}>
                       โครงสร้างทุนเปลี่ยน

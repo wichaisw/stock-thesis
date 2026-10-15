@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from shortlist import batch, db
+from shortlist.core import candidates
 from shortlist.config import load_config
 from shortlist.sources import StockInfo
 from shortlist.sources.preferred import PreferredStatements
@@ -212,6 +213,38 @@ def test_run_over_the_time_limit_stops(tmp_path, monkeypatch):
     assert run["status"] == "failed"
     assert "20 นาที" in run["error"] and "ดึงงบ" in run["error"]
     assert fin.calls == ["S00", "S01"]
+
+
+def stale_sources(stale: bool):
+    prices, fin = fake_sources()
+    if stale:
+        prices.prices["DDD"] = price_history().iloc[:-2]  # latest bar 12 Oct while the others reach 14 Oct
+    return prices, fin
+
+
+def test_stock_missing_the_latest_bar_is_flagged_and_counted(tmp_path):
+    conn, lines = db.connect(tmp_path / "t.db"), []
+    run_id = batch.run(conn, *stale_sources(stale=True), CFG, log=lines.append)
+
+    assert db.get_run(conn, run_id)["price_date"] == "2026-10-14"
+    assert db.evaluation(conn, run_id, "DDD")["stale_price"] is True
+    assert db.evaluation(conn, run_id, "AAA")["stale_price"] is False
+    assert any("ราคาไม่อัปเดต 1 ตัว" in ln for ln in lines)
+
+
+def test_no_stock_is_flagged_when_every_bar_is_current(tmp_path):
+    conn, lines = db.connect(tmp_path / "t.db"), []
+    run_id = batch.run(conn, *stale_sources(stale=False), CFG, log=lines.append)
+
+    assert not any(db.evaluation(conn, run_id, s)["stale_price"] for s in ["AAA", "DDD"])
+    assert any("ราคาไม่อัปเดต 0 ตัว" in ln for ln in lines)
+
+
+def test_stale_price_does_not_change_inclusion(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    ev = db.evaluation(conn, batch.run(conn, *stale_sources(stale=True), CFG), "DDD")
+    fresh = {**ev, "stale_price": False}
+    assert candidates.inclusion(ev, CFG.candidates) == candidates.inclusion(fresh, CFG.candidates)
 
 
 def test_log_has_the_duration_of_every_phase(tmp_path):

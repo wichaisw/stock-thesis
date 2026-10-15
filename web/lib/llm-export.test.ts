@@ -142,6 +142,15 @@ describe("toLlmMarkdown", () => {
     expect(md).not.toMatch(/holding period|per month/i);
   });
 
+  test("marks a stale last close", () => {
+    const d = candidate();
+    expect(toLlmMarkdown(d)).not.toContain("stale");
+    d.evaluation!.stale_price = true;
+    expect(toLlmMarkdown(d)).toContain(
+      "- Last close: 32.75 THB on 2026-10-14 (stale: older than the latest price of other stocks in the same batch run)",
+    );
+  });
+
   test("explains the methods it contains, including the cash dividend yield band", () => {
     const md = toLlmMarkdown(candidate());
     const notes = md.slice(md.indexOf("## Method notes"));

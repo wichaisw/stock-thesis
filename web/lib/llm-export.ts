@@ -129,7 +129,10 @@ export function toLlmMarkdown(d: StockDetail): string {
     `- Sector: ${stock.sector}`,
     `- Market: ${stock.market}`,
   ];
-  if (ev) out.push(`- Last close: ${thb(ev.price)} on ${ev.price_date}`);
+  if (ev)
+    out.push(
+      `- Last close: ${thb(ev.price)} on ${ev.price_date}${ev.stale_price ? " (stale: older than the latest price of other stocks in the same batch run)" : ""}`,
+    );
   if (failure) out.push(`- Data fetch failed in the latest batch: ${failure}`);
   if (!ev && !failure) out.push("- No evaluation yet");
 

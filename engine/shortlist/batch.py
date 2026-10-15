@@ -211,9 +211,13 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
 
     for rank, ev in enumerate(candidates.rank(evaluations, cfg.candidates), start=1):
         ev["candidate_rank"] = rank
+    # needs every stock's latest bar first: without an SET holiday calendar, the newest bar in the run is the reference
+    price_date = max((e["price_date"] for e in evaluations), default=None)
+    for ev in evaluations:
+        ev["stale_price"] = ev["price_date"] < price_date
     log(
-        f"candidates {sum(e['candidate_rank'] is not None for e in evaluations)} ตัว, fail {len(failures)} ตัว "
-        f"(ประเมิน {guard.lap()}, รวม {guard.total()})"
+        f"candidates {sum(e['candidate_rank'] is not None for e in evaluations)} ตัว, fail {len(failures)} ตัว, "
+        f"ราคาไม่อัปเดต {sum(e['stale_price'] for e in evaluations)} ตัว (ประเมิน {guard.lap()}, รวม {guard.total()})"
     )
 
     return db.RunResults(
@@ -222,7 +226,7 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
         quarterly=quarterly,
         evaluations=evaluations,
         failures=failures,
-        price_date=max((e["price_date"] for e in evaluations), default=None),
+        price_date=price_date,
     )
 
 

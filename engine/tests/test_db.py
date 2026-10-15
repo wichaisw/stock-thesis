@@ -40,12 +40,37 @@ def test_run_and_evaluation_round_trip(tmp_path):
     run = db.latest_successful_run(conn)
     assert run["id"] == run_id and run["total"] == 3 and run["succeeded"] == 2 and run["failed"] == 1
     assert run["price_date"] == "2026-10-14"
+    # evaluations without stale_price, as in runs saved before the check
+    assert (run["stale_count"], run["stale_date"]) == (0, None)
     assert db.candidates(conn, run_id) == [ev_a]
     assert db.evaluation(conn, run_id, "BBB") == ev_b
     assert db.failures(conn, run_id) == {"CCC": "ไม่มีข้อมูลราคา"}
     assert conn.execute("SELECT close FROM prices_daily").fetchone()[0] == 1.1
     assert conn.execute("SELECT eps FROM financials_quarterly").fetchone()[0] == 0.5
     assert [s["symbol"] for s in db.search_stocks(conn, "b")] == ["BBB"]
+
+
+def test_latest_run_counts_stale_prices_with_their_most_common_date(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    run_id = db.start_run(conn, stale_minutes=30)
+    dates = {"AAA": "2026-10-14", "BBB": "2026-10-12", "CCC": "2026-10-12", "DDD": "2026-10-09"}
+    evaluations = [
+        {"symbol": s, "candidate_rank": None, "price_date": d, "stale_price": d < "2026-10-14"} for s, d in dates.items()
+    ]
+    db.save_run(
+        conn,
+        run_id,
+        db.RunResults(
+            stocks=[StockInfo(s, f"{s} Co", "Commerce", "SET") for s in dates],
+            prices={},
+            quarterly={},
+            evaluations=evaluations,
+            failures={},
+            price_date="2026-10-14",
+        ),
+    )
+    run = db.latest_successful_run(conn)
+    assert (run["stale_count"], run["stale_date"]) == (3, "2026-10-12")
 
 
 def test_connection_works_from_another_thread(tmp_path):

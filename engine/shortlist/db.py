@@ -220,7 +220,15 @@ def latest_run(conn: sqlite3.Connection) -> dict | None:
 
 def latest_successful_run(conn: sqlite3.Connection) -> dict | None:
     row = conn.execute("SELECT * FROM runs WHERE status='succeeded' ORDER BY id DESC LIMIT 1").fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    # runs saved before the stale check have no stale_price, so they count 0
+    stale = conn.execute(
+        "SELECT json_extract(result, '$.price_date') AS d, COUNT(*) AS n FROM evaluations "
+        "WHERE run_id=? AND json_extract(result, '$.stale_price') = 1 GROUP BY d ORDER BY n DESC, d DESC",
+        (row["id"],),
+    ).fetchall()
+    return {**dict(row), "stale_count": sum(r["n"] for r in stale), "stale_date": stale[0]["d"] if stale else None}
 
 
 def candidates(conn: sqlite3.Connection, run_id: int) -> list[dict]:

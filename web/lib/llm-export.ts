@@ -1,6 +1,6 @@
 import type { Evaluation, StockDetail } from "@/lib/engine";
 import { pct } from "@/lib/format";
-import { gateRows } from "@/lib/gates";
+import { gateRows, METHOD_SHORT } from "@/lib/gates";
 
 // English twin of FAIR_VALUE_HELP / MOS_HELP in app/stocks/[symbol]/page.tsx: change both together
 export const METHOD_NOTES_EN: Record<string, string> = {
@@ -20,6 +20,9 @@ export const METHOD_NOTES_EN: Record<string, string> = {
 
 const MOS_NOTE_EN =
   "MoS (margin of safety) = (fair value − price) ÷ fair value. Positive means the price is below that method's fair value. When a fair value is very low, the negative MoS looks exaggerated.";
+
+const GATE_NOTE_EN =
+  "Fair value gate: a candidate needs every computable gate method (peer PE and justified PBV, the two methods whose backtest edge held) to have MoS at or above the threshold, with at least one computable. MoS gate is the lowest of them. The target is the lower fair value of the gate methods, not the panel median; the other methods are views only.";
 
 const PROMPT = `You are giving a second opinion on a stock listed on the Stock Exchange of Thailand (SET).
 The investor is a value investor who plans to hold for about one quarter, enters on CDC ActionZone timing, and filters candidates with pass/fail gates (never a weighted score). Fair value is a panel of methods, never one number.
@@ -70,6 +73,13 @@ function gates(ev: Evaluation): string[] {
   return out;
 }
 
+function gateLine(g: NonNullable<Evaluation["fair_value"]>["gate"]): string {
+  if (!g) return "- MoS gate: N/A (run saved before the fair value gate)";
+  const names = g.methods.map((m) => METHOD_SHORT[m] ?? m).join(", ");
+  const value = g.mos === null || g.method === null ? "N/A, no gate method computable" : `${pct(g.mos)} (${METHOD_SHORT[g.method] ?? g.method})`;
+  return `- MoS gate: ${value}; gate methods: ${names}; each computable one needs MoS ≥ ${pct(g.min_mos, 0)}`;
+}
+
 function fairValue(fv: NonNullable<Evaluation["fair_value"]>): string[] {
   const s = fv.summary;
   const out = [
@@ -77,6 +87,7 @@ function fairValue(fv: NonNullable<Evaluation["fair_value"]>): string[] {
     `- MoS min / median / max: ${pct(s.min_mos)} / ${pct(s.median_mos)} / ${pct(s.max_mos)}`,
     `- Median fair value: ${thb(s.median_fair_value)}; max fair value: ${thb(s.max_fair_value)}`,
     `- EPS TTM: ${num(fv.eps_ttm, " THB")}`,
+    gateLine(fv.gate),
   ];
   if (fv.structure_change.flag) out.push(`- Warning, capital structure changed: ${fv.structure_change.reason}`);
   if (fv.history_gap?.flag) out.push(`- Warning, incomplete history: ${fv.history_gap.reason}`);
@@ -108,7 +119,7 @@ function riskReward(r: Evaluation["risk_reward"]): string[] {
   const out = [
     `- Entry (last close): ${thb(r.entry)}`,
     `- Stop: ${thb(r.stop)}`,
-    `- Target (median fair value): ${thb(r.target)}`,
+    `- Target (lower fair value of the gate methods, not the median): ${thb(r.target)}`,
     `- Target optimistic (max fair value): ${thb(r.target_optimistic)}`,
     `- RRR: ${num(r.rrr)}${r.low_rrr ? " (below the minimum RRR)" : ""}`,
     `- Upside: ${pct(r.upside)}${r.high_upside ? " (unusually high upside)" : ""}`,
@@ -156,7 +167,7 @@ export function toLlmMarkdown(d: StockDetail): string {
 
   if (ev?.fair_value) {
     const notes = ev.fair_value.items.flatMap((i) => (METHOD_NOTES_EN[i.method] ? [`- ${METHOD_NOTES_EN[i.method]}`] : []));
-    out.push("", "## Method notes", "", ...notes, `- ${MOS_NOTE_EN}`);
+    out.push("", "## Method notes", "", ...notes, `- ${MOS_NOTE_EN}`, `- ${GATE_NOTE_EN}`);
   }
   return out.join("\n") + "\n";
 }

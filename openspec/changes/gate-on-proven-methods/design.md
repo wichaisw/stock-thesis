@@ -26,7 +26,7 @@
 ## Decisions
 
 ### D1: คำนวณ gate ครั้งเดียวใน engine และเก็บใน `fair_value.gate`
-เพิ่ม pure function ใน `core/fair_value.py` ที่รับ items ของ panel กับรายชื่อ gate methods แล้วคืน `{"methods": [...], "items": [{method, mos, fair_value, reason}], "mos": <MoS ต่ำสุด>, "fair_value": <fair value ต่ำสุด>, "method": <method ที่ให้ค่านั้น>}` (ค่าเป็น None เมื่อไม่มีตัวที่คำนวณได้) batch และ backtest เรียกต่อจาก `fair_value.evaluate` แล้วเก็บไว้ที่ `ev["fair_value"]["gate"]` ส่วน `candidates`, `risk_reward`, web และ LLM export อ่านจากตรงนี้
+เพิ่ม pure function ใน `core/fair_value.py` ที่รับ items ของ panel กับรายชื่อ gate methods แล้วคืน `{"methods": [...], "items": [{method, mos, fair_value, reason}], "mos": <MoS ต่ำสุด>, "fair_value": <fair value ต่ำสุด>, "method": <method ที่ให้ค่านั้น>}` (ค่าเป็น None เมื่อไม่มีตัวที่คำนวณได้) batch และ backtest เรียกต่อจาก `fair_value.evaluate` แล้วเก็บไว้ที่ `ev["fair_value"]["gate"]` (batch เติม `min_mos` = `min_gate_mos` ของ run นั้น แบบเดียวกับ `liquidity.threshold` เพื่อให้หน้ารายละเอียดแสดงเกณฑ์ที่ใช้จริง) ส่วน `candidates`, `risk_reward`, web และ LLM export อ่านจากตรงนี้
 - ทางเลือกที่ไม่เลือก: (ก) ให้ `candidates.inclusion` และ `risk_reward` คำนวณเองจาก items ซึ่งจะมี logic เดียวกันสองที่และอาจ drift ได้ (ข) ให้ web คำนวณจาก items ซึ่งจะมี rule ซ้ำใน TypeScript และ backtest ใช้ไม่ได้ (ค) ใส่ใน `summary` ซึ่งปน gate กับมุมมองของ panel ที่ spec บอกให้คงเดิม
 - `fair_value.evaluate` ไม่รับ `Candidates` config จึงไม่เรียก gate ข้างใน เพื่อไม่ให้ fair value ผูกกับ config ของ candidates
 

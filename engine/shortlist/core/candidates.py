@@ -2,6 +2,12 @@ import math
 
 from shortlist.config import Candidates
 
+# short names for reasons; the panel keeps the long labels with formulas
+SHORT = {
+    "pe_median": "PE band", "pe_minus_1sd": "PE band − 1SD", "pbv_median": "PBV band",
+    "dividend_yield_median": "Dividend yield band", "peer_pe": "Peer PE", "justified_pbv": "Justified PBV",
+}
+
 
 def inclusion(ev: dict, cfg: Candidates) -> dict:
     """Why a stock is (not) a candidate. `ev` holds the liquidity/quality/fair_value/cdc results."""
@@ -12,12 +18,13 @@ def inclusion(ev: dict, cfg: Candidates) -> dict:
         failed = [c["reason"] for c in ev["quality"]["checks"] if c["passed"] is False]
         reasons.append(f"ไม่ผ่าน quality gate: {', '.join(failed)}")
 
-    mos = ev["fair_value"]["summary"]["median_mos"] if ev.get("fair_value") else None
     if ev.get("fair_value") is not None:
-        if mos is None:
-            reasons.append("fair value panel ไม่มีเกณฑ์ที่คำนวณได้")
-        elif mos < cfg.min_median_mos:
-            reasons.append(f"median margin of safety {mos:.1%} ต่ำกว่าเกณฑ์ {cfg.min_median_mos:.0%}")
+        gate = ev["fair_value"]["gate"]
+        if gate["mos"] is None:
+            reasons.append("ไม่มี gate method ที่คำนวณได้ (Peer PE, Justified PBV)")
+        for item in gate["items"]:
+            if item["mos"] is not None and item["mos"] < cfg.min_gate_mos:
+                reasons.append(f"MoS ของ {SHORT[item['method']]} {item['mos']:.1%} ต่ำกว่าเกณฑ์ {cfg.min_gate_mos:.0%}")
 
     state = ev["cdc"]["state"]
     if state is None:
@@ -32,7 +39,7 @@ def sort_key(ev: dict) -> tuple:
     return (
         ev["cdc"]["state"] != "just-crossed",
         eta if eta is not None else math.inf,
-        -ev["fair_value"]["summary"]["median_mos"],
+        -ev["fair_value"]["gate"]["mos"],
     )
 
 

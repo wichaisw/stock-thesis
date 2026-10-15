@@ -20,14 +20,16 @@ HORIZON = 63
 # 63 stays the thesis horizon; the longer ones only show whether a high MoS was wrong or just slow (design D2)
 HORIZONS = (HORIZON, 126, 252)
 MEDIAN = "median"  # the panel's median MoS, scored like a method
-CANDIDATE = "candidate"  # quality passed and median MoS ≥ candidates.min_median_mos
+GATE = "gate"  # lowest MoS of the computable gate methods, scored like a method (gate-on-proven-methods D5)
+CANDIDATE = "candidate"  # quality passed and every computable gate method's MoS ≥ candidates.min_gate_mos
+CANDIDATE_MEDIAN = "candidate (median)"  # the old rule kept for comparison: quality passed and median MoS ≥ min_gate_mos
 RELATIVE = "candidate (relative)"  # quality passed and median MoS in the date's top RELATIVE_TOP (design D4)
 RELATIVE_TOP = 0.20
 BOOTSTRAP = 2000
 # same rules as the stock-sanity-check skill
 ABNORMAL_MOS = -1.0
 ABNORMAL_FV_TO_PRICE = 5.0
-# fixed edges so runs compare (design D9); 10% is candidates.min_median_mos
+# fixed edges so runs compare (design D9); 10% is candidates.min_gate_mos
 BUCKETS = [(-math.inf, 0.0, "< 0"), (0.0, 0.10, "0–10%"), (0.10, 0.30, "10–30%"), (0.30, math.inf, "≥ 30%")]
 POISON_FACTOR = 1000
 # one shuffle of ~14 stocks per date swings ±4% by chance; the mean of 20 settles near the true offset
@@ -117,7 +119,7 @@ def abnormal(fv: float | None, mos: float | None, price: float) -> bool:
 def evaluate_date(
     stocks: dict[str, StockData], t: pd.Timestamp, cfg: Config, cut: Cut = cut
 ) -> tuple[list[dict], dict[str, str]]:
-    """One row per stock per method (plus MEDIAN) for stocks liquid at T, and the stocks skipped for a cap gap."""
+    """One row per stock per method (plus MEDIAN and GATE) for stocks liquid at T, and the stocks skipped for a cap gap."""
     at = {sym: cut(s, t, cfg.catalyst) for sym, s in stocks.items()}
     liquid = {
         sym: s for sym, s in at.items()
@@ -136,13 +138,18 @@ def evaluate_date(
         fv = fair_value.evaluate(s.quarterly, price[sym], peers, cfg.fair_value, s.caps)
         passed = quality.evaluate(s.quarterly, s.info.sector, cfg.quality)["passed"]
         summary = fv["summary"]
-        candidate = passed and summary["median_mos"] is not None and summary["median_mos"] >= cfg.candidates.min_median_mos
+        gate = fair_value.gate(fv["items"], cfg.candidates.gate_methods)
+        min_mos = cfg.candidates.min_gate_mos
+        candidate = passed and gate["mos"] is not None and gate["mos"] >= min_mos
+        candidate_median = passed and summary["median_mos"] is not None and summary["median_mos"] >= min_mos
         items = [(i["method"], i["fair_value"], i["mos"]) for i in fv["items"]]
         items.append((MEDIAN, summary["median_fair_value"], summary["median_mos"]))
+        items.append((GATE, gate["fair_value"], gate["mos"]))
         for method, value, mos in items:
             rows.append({
                 "date": t, "symbol": sym, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
-                "quality_passed": passed, "candidate": candidate, "abnormal": abnormal(value, mos, price[sym]),
+                "quality_passed": passed, "candidate": candidate, "candidate_median": candidate_median,
+                "abnormal": abnormal(value, mos, price[sym]),
             })
     top = top_share({r["symbol"]: r["mos"] for r in rows if r["method"] == MEDIAN})
     for r in rows:
@@ -182,19 +189,24 @@ def with_outcomes(rows: pd.DataFrame, prices: dict[str, pd.DataFrame]) -> pd.Dat
     return out
 
 
+CANDIDATE_GROUPS = [(CANDIDATE, GATE, "candidate"), (CANDIDATE_MEDIAN, MEDIAN, "candidate_median"), (RELATIVE, MEDIAN, "relative")]
+CANDIDATE_NAMES = {name for name, _, _ in CANDIDATE_GROUPS}
+
+
 def bucket(mos: float) -> str:
     return next(label for lo, hi, label in BUCKETS if lo <= mos < hi)
 
 
 def groups(rows: pd.DataFrame, min_mos: float) -> dict[str, pd.DataFrame]:
-    """Per method (plus MEDIAN and CANDIDATE): its computed rows with `selected` = in the group whose excess is scored."""
+    """Per method (plus MEDIAN, GATE and the candidate groups): its computed rows with `selected` = in the group
+    whose excess is scored. Each candidate group reads the row of its own rule, so hit and abnormal follow that rule."""
     out = {}
     for method in rows["method"].unique():
         g = rows[(rows["method"] == method) & rows["mos"].notna()].copy()
         g["selected"] = g["mos"] >= min_mos
         out[method] = g
-    for name, flag in [(CANDIDATE, "candidate"), (RELATIVE, "relative")]:
-        g = rows[rows["method"] == MEDIAN].copy()
+    for name, method, flag in CANDIDATE_GROUPS:
+        g = rows[rows["method"] == method].copy()
         g["selected"] = g[flag]
         out[name] = g
     return out
@@ -240,7 +252,7 @@ def summarize(done: pd.DataFrame, baseline: pd.Series, min_mos: float, seed: int
     """One summary row per group at HORIZON: evaluations, hit rate, excess with t/CI and its placebo."""
     out = []
     for name, g in groups(done, min_mos).items():
-        up = g[g["selected"]] if name in (CANDIDATE, RELATIVE) else g[g["mos"] > 0]
+        up = g[g["selected"]] if name in CANDIDATE_NAMES else g[g["mos"] > 0]
         hits = up["max_high"] >= up["fair_value"]
         real = excess(g, baseline, spread=True)
         runs = [excess(shuffled(g, seed + i), baseline) for i in range(PLACEBO_SEEDS)]
@@ -272,7 +284,7 @@ def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.D
             by_horizon.append({"group": name, "horizon": h, **excess(g, baselines[h], col, spread=True)})
     buckets = []
     for name, g in groups(done, min_mos).items():
-        if name in (CANDIDATE, RELATIVE):
+        if name in CANDIDATE_NAMES:
             continue
         g = g.assign(bucket=g["mos"].map(bucket), excess=g["ret"] - g["date"].map(baseline),
                      **{f"excess_{h}": g[ret_col(h)] - g["date"].map(baselines[h]) for h in HORIZONS[1:]})
@@ -314,7 +326,8 @@ def poison(s: StockData, t: pd.Timestamp, cfg: Catalyst) -> StockData:
 
 
 def _keyed(rows: list[dict], skipped: dict[str, str]) -> dict:
-    out = {(r["symbol"], r["method"]): (r["fair_value"], r["mos"], r["quality_passed"], r["candidate"]) for r in rows}
+    out = {(r["symbol"], r["method"]): (r["fair_value"], r["mos"], r["quality_passed"], r["candidate"], r["candidate_median"])
+           for r in rows}
     out.update({(sym, "skipped"): reason for sym, reason in skipped.items()})
     return out
 
@@ -408,11 +421,12 @@ def report(
     per_date = []
     for t in dates:
         day = evaluated[evaluated["date"] == t]
-        n_cand, n_rel = int(day["candidate"].sum()), int(day["relative"].sum())
+        n_cand, n_med, n_rel = (int(day[c].sum()) for c in ("candidate", "candidate_median", "relative"))
+        total = len(day) or None
         per_date.append([f"{t:%Y-%m-%d}", len(day), len(skipped.get(t, {})), n_cand,
                          _pct(result["baseline"].get(t))] + [int(computed.get((t, m), 0)) for m in methods]
-                        + [_rate(n_cand / len(day) if len(day) else None), n_rel,
-                           _rate(n_rel / len(day) if len(day) else None)])
+                        + [_rate(total and n_cand / total), n_med, _rate(total and n_med / total),
+                           n_rel, _rate(total and n_rel / total)])
     odd = rows[rows["abnormal"]].sort_values(["date", "symbol", "method"])
     odd_rows = [[f"{r.date:%Y-%m-%d}", r.symbol, r.method, f"{r.price:,.2f}", f"{r.fair_value:,.2f}", _pct(r.mos, 0)]
                 for r in odd.itertuples()]
@@ -426,7 +440,8 @@ def report(
             f"- วันที่ทดสอบ: {dates[0]:%Y-%m-%d} ถึง {dates[-1]:%Y-%m-%d} ({len(dates)} วัน สิ้นไตรมาส) วัดผลที่ {HORIZON} วันทำการ "
             f"(ตัวประกอบ {', '.join(str(h) for h in longer)} วัน)",
             f"- เกณฑ์: liquidity ≥ {cfg.liquidity.min_avg_traded_value / 1e6:,.0f} ลบ./วัน ({cfg.liquidity.window_days} วัน), "
-            f"candidate = ผ่าน quality และ median MoS ≥ {cand.min_median_mos:.0%}, "
+            f"candidate = ผ่าน quality และทุก gate method ({', '.join(cand.gate_methods)}) ที่คำนวณได้มี MoS ≥ {cand.min_gate_mos:.0%} "
+            f"(คำนวณได้อย่างน้อย 1 ตัว), candidate (median) = rule เดิม ผ่าน quality และ median MoS ≥ {cand.min_gate_mos:.0%}, "
             f"candidate (relative) = ผ่าน quality และ median MoS อยู่ใน {RELATIVE_TOP:.0%} บนของวันนั้น, method {', '.join(fv.enabled)}, "
             f"lookback {fv.lookback_quarters} ไตรมาส, min_history_points {fv.min_history_points}, "
             f"structure_change_threshold {fv.structure_change_threshold:.0%}, กำหนดส่งงบ {cfg.catalyst.quarter_deadline_days} วัน "
@@ -439,7 +454,8 @@ def report(
         f"poison check ผ่าน {len(poisoned)} วัน ({', '.join(f'{t:%Y-%m-%d}' for t in poisoned)}): "
         f"ข้อมูลหลังวันที่ทดสอบ ×{POISON_FACTOR} แล้วผลประเมินไม่เปลี่ยน excess ของ MoS ที่สลับแบบสุ่ม (แถว \"สลับ MoS\" เฉลี่ย {PLACEBO_SEEDS} รอบ) ควรใกล้ 0",
         "## ผลรวม",
-        "hit = High สูงสุดใน 63 วันถึง fair value นับเฉพาะ MoS > 0 (candidate: นับทุกตัวเทียบ median fair value) "
+        "hit = High สูงสุดใน 63 วันถึง fair value นับเฉพาะ MoS > 0 (candidate: นับทุกตัวเทียบ fair value ของ gate, "
+        "candidate (median) และ relative: เทียบ median fair value) "
         "excess = ผลตอบแทนรวมปันผลของกลุ่ม MoS ≥ เกณฑ์ − ค่าเฉลี่ยของหุ้นทุกตัวที่ประเมินได้ในวันเดียวกัน คิดต่อวันที่แล้วสรุปข้ามวัน",
         f"95% CI = ช่วงความเชื่อมั่นของ excess เฉลี่ย จากการสุ่มวันที่ใส่คืน {BOOTSTRAP:,} รอบ, "
         "t = excess เฉลี่ย ÷ standard error ของ excess ต่อวันที่",
@@ -458,7 +474,7 @@ def report(
         "## ต่อวันที่ทดสอบ",
         "จำนวนที่คำนวณได้ต่อ method (วันที่ช่วงต้นมีจุดใน band น้อยกว่า 20)",
         _table(["วันที่", "ประเมิน", "ข้าม (cap ขาด)", "candidate", "baseline"] + methods
-               + ["candidate %", "relative", "relative %"], per_date),
+               + ["candidate %", "candidate (median)", "candidate (median) %", "relative", "relative %"], per_date),
         f"## หุ้นที่ตัด ({len(excluded)} ตัว, {share:.0%})",
         ", ".join(f"{k} {v} ตัว" for k, v in by_reason.items()),
         _table(["หุ้น", "เหตุผล"], [[k, v] for k, v in sorted(excluded.items())]) if excluded else "ไม่มี",

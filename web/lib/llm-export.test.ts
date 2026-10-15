@@ -175,6 +175,28 @@ describe("toLlmMarkdown", () => {
     expect(notes).toMatch(/cost of equity.*long-term growth/);
   });
 
+  test("explains the gate and the target", () => {
+    const d = candidate();
+    const jpbv = { method: "justified_pbv", label: "Justified PBV", fair_value: 14.2, mos: 0.12, reason: null };
+    d.evaluation!.fair_value!.gate = {
+      methods: ["peer_pe", "justified_pbv"],
+      items: [{ method: "peer_pe", label: "Peer PE", fair_value: 16.0, mos: 0.2, reason: null }, jpbv],
+      mos: 0.12,
+      fair_value: 14.2,
+      method: "justified_pbv",
+      min_mos: 0.1,
+    };
+    d.evaluation!.risk_reward!.target = 14.2;
+    const md = toLlmMarkdown(d);
+    expect(md).toContain("- MoS gate: +12.0% (Justified PBV); gate methods: Peer PE, Justified PBV; each computable one needs MoS ≥ +10%");
+    expect(md).toContain("- Target (lower fair value of the gate methods, not the median): 14.20 THB");
+    expect(md.slice(md.indexOf("## Method notes"))).toContain("Fair value gate:");
+  });
+
+  test("a run saved before the gate shows MoS gate as N/A", () => {
+    expect(toLlmMarkdown(candidate())).toContain("- MoS gate: N/A (run saved before the fair value gate)");
+  });
+
   test("a failed stock still copies its status, hints and events", () => {
     const md = toLlmMarkdown(failed());
     expect(md).toContain("No data found");

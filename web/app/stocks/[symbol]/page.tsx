@@ -7,7 +7,7 @@ import { CopyButton } from "@/app/stocks/[symbol]/copy-button";
 import { EventForm } from "@/app/stocks/[symbol]/event-form";
 import { engine, EngineError, type Evaluation, type StockDetail } from "@/lib/engine";
 import { baht, pct, thaiDate } from "@/lib/format";
-import { gateRows, gateTally } from "@/lib/gates";
+import { gateRows, gateTally, METHOD_SHORT, mosGate } from "@/lib/gates";
 import { toLlmMarkdown } from "@/lib/llm-export";
 
 // METHOD_NOTES_EN in lib/llm-export.ts is the English twin of these two: change both together
@@ -186,12 +186,42 @@ function Gates({ ev }: { ev: Evaluation }) {
         </tbody>
       </table>
       {!ev.quality && <p className="mt-2 text-sm text-zinc-500">ไม่ได้ดึงงบเพราะไม่ผ่าน liquidity filter</p>}
+      <FairValueGate ev={ev} />
       {ev.quality?.inflection.flag && (
         <p className="mt-2">
           <Tag tone="violet">inflection</Tag> {ev.quality.inflection.reason}
         </p>
       )}
     </Section>
+  );
+}
+
+function FairValueGate({ ev }: { ev: Evaluation }) {
+  if (!ev.fair_value) return null;
+  const gate = ev.fair_value.gate;
+  if (!gate) return <p className="mt-4 text-sm text-zinc-500">MoS gate: N/A (run นี้รันก่อนมี gate ด้าน fair value)</p>;
+  return (
+    <div className="mt-4">
+      <p className="mb-1 font-medium">
+        Gate ด้าน fair value · MoS gate <b>{mosGate(ev)}</b>
+      </p>
+      <p className="mb-2 text-sm text-zinc-500">
+        ทุก gate method ที่คำนวณได้ต้องมี MoS ≥ {pct(gate.min_mos, 0)} และต้องคำนวณได้อย่างน้อย 1 ตัว
+      </p>
+      <table className="w-full text-sm">
+        <tbody>
+          {gate.items.map((i) => (
+            <tr key={i.method} className="border-t border-zinc-100 dark:border-zinc-800">
+              <td className="py-1">{METHOD_SHORT[i.method] ?? i.method}</td>
+              <td className="py-1">
+                {i.mos === null ? <span className="text-zinc-500">คำนวณไม่ได้</span> : <Verdict passed={i.mos >= gate.min_mos} />}
+              </td>
+              <td className="py-1">{i.mos === null ? i.reason : `MoS ${pct(i.mos)} (fair value ${baht(i.fair_value)})`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -286,7 +316,7 @@ function RiskReward({ ev }: { ev: Evaluation }) {
         <dl>
           <Row label="Entry (ราคาปิดล่าสุด)">{baht(r.entry)}</Row>
           <Row label="Stop">{baht(r.stop)}</Row>
-          <Row label="Target (median fair value)">{baht(r.target)}</Row>
+          <Row label="Target (fair value ที่ต่ำกว่าของ gate methods)">{baht(r.target)}</Row>
           <Row label="Target optimistic (max)">{baht(r.target_optimistic)}</Row>
           <Row label="RRR">
             {r.rrr ?? "N/A"} {r.low_rrr && <Tag tone="red">RRR ต่ำกว่าเกณฑ์</Tag>}

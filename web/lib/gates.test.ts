@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Check, Evaluation } from "@/lib/engine";
-import { gateRows, gateTally } from "@/lib/gates";
+import { gateRows, gateTally, mosGate } from "@/lib/gates";
 
 const ok = (name: string): Check => ({ name, passed: true, value: 1, threshold: "", reason: name });
 
@@ -29,5 +29,18 @@ describe("gateTally", () => {
   test("a stock without statements scores 0/1", () => {
     const t = gateTally(gateRows(ev(null), ""));
     expect([t.passed, t.evaluated]).toEqual([0, 1]);
+  });
+});
+
+describe("mosGate", () => {
+  const withGate = (gate: object | undefined) => ({ fair_value: { gate } }) as unknown as Evaluation;
+
+  test("shows the lower gate method and its name", () => {
+    expect(mosGate(withGate({ mos: 0.12, method: "justified_pbv" }))).toBe("+12% (Justified PBV)");
+  });
+
+  test("is N/A without a computable gate method or in a run before the gate", () => {
+    expect(mosGate(withGate({ mos: null, method: null }))).toBe("N/A");
+    expect(mosGate(withGate(undefined))).toBe("N/A");
   });
 });

@@ -5,7 +5,7 @@ import { FailIcon, StaleNotice, StateBadge, Tag, Tooltip } from "@/app/badges";
 import { RunButton } from "@/app/run-button";
 import { engine, type Evaluation, type Failure, type Run } from "@/lib/engine";
 import { baht, pct, thaiDate, thaiDateTime } from "@/lib/format";
-import { gateRows, gateTally } from "@/lib/gates";
+import { gateRows, gateTally, mosGate } from "@/lib/gates";
 
 const secondaryButton =
   "rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
@@ -112,6 +112,7 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
             <th className={th}>CDC</th>
             <th className={`${th} text-right`}>ETA (วัน)</th>
             <th className={th}>Fair value panel</th>
+            <th className={`${th} text-right`}>MoS gate</th>
             <th className={`${th} text-right`}>MoS ต่ำ / median / สูง</th>
             <th className={`${th} text-right`}>RRR</th>
             <th className={th}>ป้าย</th>
@@ -148,8 +149,9 @@ function CandidateTable({ candidates }: { candidates: Evaluation[] }) {
                 </td>
                 <td className="px-3 py-2 text-right">{c.cdc.eta_days ?? "-"}</td>
                 <td className="px-3 py-2">{fv.label}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">
-                  {pct(fv.min_mos, 0)} / <b>{pct(fv.median_mos, 0)}</b> / {pct(fv.max_mos, 0)}
+                <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">{mosGate(c)}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap text-zinc-500">
+                  {pct(fv.min_mos, 0)} / {pct(fv.median_mos, 0)} / {pct(fv.max_mos, 0)}
                 </td>
                 <td className="px-3 py-2 text-right" title={rr.reason ?? undefined}>
                   {rr.rrr ?? "N/A"}

@@ -54,8 +54,8 @@ flowchart TD
         E1["CDC ActionZone<br/>EMA 12/26 on close<br/>state + ETA to cross"]
         E2{"has statements?<br/>(passed liquidity)"}
         E3["Quality gate<br/>≥ 12 quarters required;<br/>ROE, D/E, OCF, no losses:<br/>at most max_failed_checks fail"]
-        E4["Fair value panel<br/>PE band (median, −1SD as one view),<br/>PBV, dividend yield, peer PE,<br/>justified PBV → median MoS"]
-        E5["Risk/reward<br/>stop = swing low − 3%<br/>target = fair value, RRR"]
+        E4["Fair value panel<br/>PE band (median, −1SD as one view),<br/>PBV, dividend yield, peer PE,<br/>justified PBV → median MoS (view)<br/>gate = lower MoS of<br/>peer PE and justified PBV"]
+        E5["Risk/reward<br/>stop = swing low − 3%<br/>target = lower fair value<br/>of the gate methods, RRR"]
         E6["Catalyst hints by sector"]
         E7["inclusion(): reasons<br/>it is / isn't a candidate"]
         E1 --> E2
@@ -66,7 +66,7 @@ flowchart TD
 
     E --> EV
     EV -->|error| E8["failure: ประเมินไม่ได้"]
-    EV --> R["8. candidates.rank<br/>keep: liquid, quality pass,<br/>MoS ≥ 10%, CDC state in<br/>bear-approaching / just-crossed"]
+    EV --> R["8. candidates.rank<br/>keep: liquid, quality pass,<br/>gate MoS ≥ 10%, CDC state in<br/>bear-approaching / just-crossed"]
     R --> S["sort: just-crossed first,<br/>then shortest ETA,<br/>then highest MoS"]
     S --> ST["mark stale_price: latest bar<br/>older than the run's price_date"]
     ST --> O["9. RunResults → db.save_run<br/>replace stocks, prices, financials;<br/>insert evaluations + failures;<br/>drop older runs' evaluations"]

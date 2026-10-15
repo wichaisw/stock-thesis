@@ -100,3 +100,22 @@ def test_justified_pbv_defaults():
 @pytest.mark.parametrize("g", [0.10, 0.12])
 def test_growth_must_be_below_cost_of_equity(g):
     assert error_locs({"fair_value.cost_of_equity": 0.10, "fair_value.terminal_growth": g}) == {"fair_value.terminal_growth"}
+
+
+def test_gate_defaults_and_old_median_override_is_skipped(caplog):
+    cfg = load_config(overrides={"candidates.min_median_mos": 0.15})
+    assert cfg.candidates.gate_methods == ["peer_pe", "justified_pbv"]
+    assert cfg.candidates.min_gate_mos == 0.10
+    assert "candidates.min_median_mos" in caplog.text
+
+
+def test_gate_methods_are_not_editable():
+    keys = {f"{section}.{name}" for section, name, _ in editable_fields()}
+    assert "candidates.gate_methods" not in keys
+    assert "candidates.min_gate_mos" in keys
+
+
+def test_disabling_every_gate_method_is_rejected():
+    others = ["pe_median", "pe_minus_1sd", "pbv_median", "dividend_yield_median"]
+    assert error_locs({"fair_value.enabled": others}) == {""}  # model-level; the API maps it to fair_value.enabled
+    load_config(overrides={"fair_value.enabled": [*others, "peer_pe"]})  # one gate method left is fine

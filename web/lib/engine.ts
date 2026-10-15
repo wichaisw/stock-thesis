@@ -71,6 +71,16 @@ export type FairValueSummary = {
   max_fair_value: number | null;
 };
 
+// lower MoS of the computable gate methods; the candidate gate, sort and target read it (design D1)
+export type FairValueGate = {
+  methods: string[];
+  items: FairValueItem[];
+  mos: number | null;
+  fair_value: number | null;
+  method: string | null;
+  min_mos: number;
+};
+
 export type Evaluation = {
   symbol: string;
   name: string;
@@ -91,6 +101,8 @@ export type Evaluation = {
     structure_change: { flag: boolean; reason: string | null };
     // absent in runs saved before market caps came from yfinance
     history_gap?: { flag: boolean; reason: string | null };
+    // absent in runs saved before gate-on-proven-methods
+    gate?: FairValueGate;
   } | null;
   cdc: {
     state: CdcState | null;

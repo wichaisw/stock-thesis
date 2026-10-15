@@ -52,6 +52,24 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 
 ## ผลตรวจข้อมูล
 
+### Candidate จาก gate methods (change `gate-on-proven-methods` task 5.1–5.2, 15 ต.ค. 2026)
+
+run 36 (ราคาปิด 15 ต.ค., ค่าบนเว็บ liquidity 3 ลบ./วัน, min_quarters 8, ที่เหลือ default) เทียบ run 35 (rule median): candidates 27 → 16 ผ่าน quality และ gate โดยไม่ดู CDC 55/245 ตัว (22%) อยู่ในช่วง 8–26% ของ backtest หุ้นที่ไม่มี gate method คำนวณได้ 40 ตัว
+- เข้า 5: PTTEP (gate +24.0% Justified PBV, median −0.3%), ADVICE (+19.6%), KCG (+15.4% Peer PE), TRT (+10.4% Peer PE, median −58%), PSP (+22.1% Peer PE)
+- หลุด 16: MoS ของ gate method ต่ำกว่า 10% 13 ตัว (BCPG, CPALL, GLOBAL, JMT, KTC, MOSHI, MTC, NSL, OSP, SABINA, SAMART, SCAP, SCGP) และไม่มี gate method ที่คำนวณได้ 3 ตัว (JAS, TPCH, VGI) ทุกตัวมีเหตุผลต่อ method เช่น "MoS ของ Peer PE -6.0% ต่ำกว่าเกณฑ์ 10%"
+- target เปลี่ยนตาม gate: SRICHA 76.07 → 60.91, AURA 19.99 → 15.96 (Peer PE คำนวณไม่ได้ ใช้ Justified PBV ตัวเดียว) ส่วน SGP 24.40 → 31.68 สูงขึ้นเพราะ median ของ panel ต่ำกว่า gate methods ทั้งสองตัว
+- stock-sanity-check (เฉพาะ candidates): AEONTS (ไตรมาส 2026Q3 ไม่ครบ ตามเดิม) และ TRT (PE band −1SD −1132%, PBV band −200% เป็น method ใน panel ไม่ใช่ gate) ไม่มี outlier ใหม่จาก target
+
+spot-check ราคาปิดบน SET (`/api/set/stock/<SYM>/info`) และหน้ารายละเอียด
+
+| หุ้น | ราคา engine / SET | Peer PE | Justified PBV | MoS gate / target | ผล |
+|---|---|---|---|---|---|
+| PTTEP | 155.00 / 155 | 222.41 | 203.84 (ตรวจมือแล้วข้างล่าง) | +24.0% / 203.84 | candidate #2 |
+| SYNEX | 9.75 / 9.75 | 12.17 | 11.85 | +17.7% / 11.85 | candidate #4 |
+| AURA | 13.70 / 13.7 | คำนวณไม่ได้ (peer 1 ตัว) | 15.96 | +14.2% / 15.96 | candidate #7 |
+| NSL | 22.80 / 22.8 | 21.50 | 25.71 | −6.0% / 21.50 | หลุด: Peer PE −6.0% |
+| MTC | 29.25 / 29.25 | 29.94 | 41.92 | +2.3% / 29.94 | หลุด: Peer PE 2.3% |
+
 ### Quality gate หลวมขึ้น (change `relax-quality-gate` task 3.1–3.2, 15 ต.ค. 2026)
 
 run D (run 35, ราคาปิด 15 ต.ค., `quality.max_failed_checks` 2) เทียบ run C (run 34, ค่า 0) ข้อมูลเดียวกัน candidates 14 → 27 ตัว ไม่มีหุ้นเดิมหลุด ลำดับของหุ้นเดิมเทียบกันยังเหมือนเดิม หุ้นใหม่ 13 ตัว นับตามเกณฑ์ที่ตก: ROE 8, D/E 5, ไม่ขาดทุน 5, OCF 1
@@ -116,6 +134,12 @@ spot-check ด้วยมือจากงบบน SET (`company-highlight/fi
 22 วันที่ทดสอบ (2021Q1–2026Q2) 524 หุ้น 3,992 การประเมิน poison check ผ่าน placebo (เฉลี่ย 20 รอบ) อยู่ที่ +0.0% ถึง +0.7% ต่อไตรมาส ตัดหุ้นออก 29% (219 จาก 743) ผลจึงเป็นของหุ้นที่เหลือเท่านั้น
 excess ต่อไตรมาสเทียบ placebo: peer_pe +1.8% (placebo +0.4%), justified_pbv +1.6% (+0.6%), pe_minus_1sd +1.9% (+0.7%), candidate +0.5% (+0.0%) ส่วน pe_median, pbv_median, dividend_yield_median และ median ไม่ต่างจาก placebo และ bucket MoS สูงไม่ได้ผลตอบแทนสูงกว่า
 spot-check PTT เจอว่ากำไรสุทธิ thaifin ในงบเก่าสูงกว่า SET (FY2022 +28.5%, FY2023 +10.6%) PE TTM ช่วงต้นจึงต่ำเกินจริง ยังไม่แก้ ผลเต็ม: [docs/backtests/fair-value-2026-10-15.md](../docs/backtests/fair-value-2026-10-15.md)
+
+### Fair value backtest หลังเปลี่ยนเป็น gate methods (change `gate-on-proven-methods` task 3.2, 15 ต.ค. 2026)
+
+cache เดิม ทุกแถว method เหมือนรอบก่อน แถว `candidate (median)` (rule เดิม) ได้เท่าแถว `candidate` เดิมทุกค่า (63 วัน +0.5%, t 0.90; ตาราง clean t 0.92)
+candidate ใหม่ (ผ่าน quality และทุก gate method peer_pe/justified_pbv ที่คำนวณได้มี MoS ≥ 10%): excess 63 วัน +1.7% (95% CI +0.7% ถึง +2.8%, t 3.25) placebo −0.1% ตรงกับ spike ตาราง clean +1.7% (t 3.42) ที่ 126 วัน +2.7% (t 4.10) ที่ 252 วัน +5.7% (t 5.33) สัดส่วน candidate ต่อวันที่ 8–26% (rule เดิม 6–56%) แถว `gate` (MoS ต่ำสุดของ gate methods ทุกหุ้น) +1.8% (t 3.59) แต่ placebo ของ `gate` ในตาราง clean สูง (+1.2%) เพราะตัดแถว gate ที่ผิดปกติ (Justified PBV ต่ำมาก) ออกไม่สุ่ม
+ข้อควรระวังเดิม: gate methods ถูกเลือกจาก 22 วันที่เดียวกัน (in-sample) จึงต้องเทียบแถว `candidate` กับ `candidate (median)` ทุกไตรมาส
 
 ### Fair value backtest พร้อมช่วงความเชื่อมั่น (change `strengthen-fair-value-backtest` task 5.3, 15 ต.ค. 2026)
 

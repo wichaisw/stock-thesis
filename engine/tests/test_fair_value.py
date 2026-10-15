@@ -261,3 +261,37 @@ def test_no_market_cap_at_all_is_na():
     for method in ("pe_median", "pe_minus_1sd", "pbv_median"):
         assert item(r, method)["fair_value"] is None
         assert item(r, method)["reason"] == "ไม่มี market cap ย้อนหลัง"
+
+
+def fv_item(method, value, mos, reason=None):
+    return {"method": method, "label": fair_value.LABELS[method], "fair_value": value, "mos": mos, "reason": reason}
+
+
+GATE = ["peer_pe", "justified_pbv"]
+
+
+def test_gate_takes_the_lower_gate_method():
+    items = [fv_item("pe_median", 30.0, 0.5), fv_item("peer_pe", 15.0, 0.2), fv_item("justified_pbv", 14.2, 0.155)]
+    g = fair_value.gate(items, GATE)
+    assert (g["mos"], g["fair_value"], g["method"]) == (0.155, 14.2, "justified_pbv")
+    assert [r["method"] for r in g["items"]] == GATE
+
+
+def test_gate_with_one_computable_method():
+    items = [fv_item("peer_pe", 15.0, 0.12), fv_item("justified_pbv", None, None, "ROE TTM 2.0% ไม่สูงกว่า g 3.0%")]
+    g = fair_value.gate(items, GATE)
+    assert (g["mos"], g["fair_value"], g["method"]) == (0.12, 15.0, "peer_pe")
+
+
+def test_gate_without_computable_method_keeps_each_reason():
+    items = [fv_item("pe_median", 30.0, 0.4), fv_item("peer_pe", None, None, "กำไร 4 ไตรมาสติดลบ"),
+             fv_item("justified_pbv", None, None, "คำนวณ ROE TTM ไม่ได้")]
+    g = fair_value.gate(items, GATE)
+    assert (g["mos"], g["fair_value"], g["method"]) == (None, None, None)
+    assert [r["reason"] for r in g["items"]] == ["กำไร 4 ไตรมาสติดลบ", "คำนวณ ROE TTM ไม่ได้"]
+
+
+def test_gate_method_disabled_in_panel_counts_as_not_computable():
+    g = fair_value.gate([fv_item("justified_pbv", 14.2, 0.155)], GATE)
+    assert g["items"][0]["mos"] is None and g["items"][0]["reason"] == "ปิดเกณฑ์นี้อยู่"
+    assert g["method"] == "justified_pbv"

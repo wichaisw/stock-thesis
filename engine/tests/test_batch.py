@@ -50,6 +50,9 @@ def test_one_stock_failing_does_not_stop_the_batch(tmp_path):
     ev = db.evaluation(conn, run_id, "AAA")
     assert ev["quality"]["passed"]
     assert ev["fair_value"]["summary"]["computed"] > 0
+    gate = ev["fair_value"]["gate"]
+    assert gate["methods"] == ["peer_pe", "justified_pbv"] and gate["min_mos"] == CFG.candidates.min_gate_mos
+    assert ev["risk_reward"]["target"] == gate["fair_value"]  # target follows the gate, not the median
     assert ev["cdc"]["state"] == "bull"
     assert db.evaluation(conn, run_id, "BBB") is None
 

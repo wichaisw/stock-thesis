@@ -139,7 +139,7 @@ def main() -> None:
             "cache_date": cache_date,
         },
         cfg=cfg, dates=dates, universe=len(data), excluded=excluded, failures=failures, skipped=skipped,
-        poisoned=poisoned, rows=df, result=bt.metrics(df, cfg.candidates.min_median_mos),
+        poisoned=poisoned, rows=df, result=bt.metrics(df, cfg.candidates.min_gate_mos),
     )
     OUT.mkdir(parents=True, exist_ok=True)
     out = OUT / f"fair-value-{date.today().isoformat()}.md"

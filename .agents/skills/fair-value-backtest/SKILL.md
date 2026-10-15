@@ -26,10 +26,12 @@ Runs `fair_value.evaluate` and `quality.evaluate` as of each quarter end, using 
 | Metric | Meaning | Look for |
 |---|---|---|
 | hit (n) | Of evaluations with MoS > 0, % where the High within 63 days reached the fair value | Higher MoS buckets should not hit far less often (a fair value set too high) |
-| excess | Mean 63-day total return of the group with MoS ≥ `min_median_mos`, minus the equal-weight mean of every stock evaluated that day. Taken per date, then summarized across dates | Mean and median both > 0, with most dates positive |
+| excess | Mean 63-day total return of the group with MoS ≥ `min_gate_mos`, minus the equal-weight mean of every stock evaluated that day. Taken per date, then summarized across dates | Mean and median both > 0, with most dates positive |
 | สลับ MoS (placebo) | The same excess after shuffling MoS among the stocks of each date, averaged over 20 shuffles | Near 0. If not, the measurement itself is biased: don't trust the real rows |
 | bucket | Count, hit rate, median return and median excess per MoS bucket (< 0, 0–10%, 10–30%, ≥ 30%) | Returns rising with MoS means the method ranks stocks |
-| candidate | Passed quality and median MoS ≥ `min_median_mos` (CDC is not part of it) | Excess > 0 is the evidence behind "the profit comes from fundamentals and MoS" |
+| gate | Lowest MoS of the computable gate methods (`candidates.gate_methods`), scored like a method | The value the candidate rule, the sort and the target read |
+| candidate | The live rule: passed quality and every computable gate method has MoS ≥ `min_gate_mos`, at least one computable (CDC is not part of it). Hit is measured against the gate's fair value | Excess > 0 is the evidence behind "the profit comes from fundamentals and MoS" |
+| candidate (median) | The old rule, kept for comparison: passed quality and median MoS ≥ `min_gate_mos` | If it beats `candidate` (or `candidate`'s CI crosses 0), tell the user: the gate rule needs a review (its two methods were picked in-sample) |
 | 95% CI, t | Range of the mean excess from resampling the test dates 2,000 times, and mean ÷ standard error across dates | CI above 0 (or t above ~2). With about 48 CIs in one file, about 2 clear 0 by chance: one alone is a hypothesis, not proof |
 | candidate (relative) | Passed quality and median MoS in the top 20% of that date's evaluated stocks, no MoS floor. Backtest only | Beats `candidate` on the 63-day row and in the clean table, with a placebo near 0. The per-date `candidate %` column shows how far the absolute gate drifts |
 | ผลรวมแบบไม่นับค่าผิดปกติ | The summary again with abnormal evaluations dropped from each group, same baseline | A group that wins only in the main table is winning on bad data |

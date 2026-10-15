@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 from pydantic.fields import FieldInfo
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
@@ -111,7 +111,8 @@ class Quality(Strict):
 class FairValue(Strict):
     enabled: list[FairValueMethod] = editable(
         "เกณฑ์ fair value ที่ใช้",
-        "เกณฑ์ที่นำมาคำนวณ fair value และ margin of safety ปิดเกณฑ์ไหน median MoS จะคิดจากเกณฑ์ที่เหลือ ต้องเลือกอย่างน้อยหนึ่งเกณฑ์",
+        "เกณฑ์ที่นำมาคำนวณ fair value และ margin of safety Peer PE และ Justified PBV เป็น gate method ที่ตัดสิน candidate และ target "
+        "ปิดตัวหนึ่งได้แต่ rule จะต่างจากที่ backtest ทดสอบ และต้องเปิด gate method ไว้อย่างน้อยหนึ่งตัว ต้องเลือกอย่างน้อยหนึ่งเกณฑ์",
         "choice", min_length=1,
     )
     lookback_quarters: int = editable(
@@ -232,10 +233,12 @@ class RiskReward(Strict):
 
 
 class Candidates(Strict):
-    min_median_mos: float = editable(
-        "Median MoS ขั้นต่ำ",
-        "หุ้นต้องมี median ของ margin of safety จาก fair value panel อย่างน้อยเท่านี้จึงเข้า candidate list เพิ่มค่าจะเหลือหุ้นที่ถูกชัดเจนแต่จำนวนน้อยลง "
-        "ลดค่าจะได้หุ้นเพิ่ม รวมถึงหุ้นที่ราคาใกล้ fair value ซึ่ง upside น้อย",
+    # not editable: changing which methods gate needs a backtest behind it (design D3)
+    gate_methods: list[FairValueMethod] = Field(min_length=1)
+    min_gate_mos: float = editable(
+        "MoS ขั้นต่ำของ gate method",
+        "ทุก gate method (Peer PE, Justified PBV) ที่คำนวณได้ต้องมี margin of safety อย่างน้อยเท่านี้จึงเข้า candidate list ค่านี้ไม่ใช่ median ของ panel "
+        "เพิ่มค่าจะเหลือหุ้นที่ถูกชัดเจนแต่จำนวนน้อยลง ลดค่าจะได้หุ้นเพิ่ม รวมถึงหุ้นที่ราคาใกล้ fair value ซึ่ง upside น้อย",
         "percent", ge=-1, le=1,
     )
     accepted_states: list[CdcState] = editable(
@@ -280,6 +283,13 @@ class Config(Strict):
     candidates: Candidates
     catalyst: Catalyst
     batch: Batch
+
+    @model_validator(mode="after")
+    def _a_gate_method_stays_enabled(self) -> "Config":
+        # model-level, so the API maps this error to fair_value.enabled (design D4)
+        if not set(self.fair_value.enabled) & set(self.candidates.gate_methods):
+            raise ValueError("ต้องเปิดอย่างน้อยหนึ่งเกณฑ์ที่ใช้เป็น gate (Peer PE หรือ Justified PBV)")
+        return self
 
 
 def editable_fields() -> list[tuple[str, str, FieldInfo]]:

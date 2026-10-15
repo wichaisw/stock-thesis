@@ -121,6 +121,14 @@ def test_settings_start_at_defaults(client):
     assert body["stale"] is False and body["updated_at"] is None
 
 
+def test_gate_methods_are_marked_in_the_fair_value_options(client):
+    c, _ = client
+    options = {o["value"]: o["label"] for o in field(c.get("/settings").json(), "fair_value.enabled")["options"]}
+    assert options["peer_pe"].endswith("· gate method") and options["justified_pbv"].endswith("· gate method")
+    assert "gate" not in options["pbv_median"]
+    assert field(c.get("/settings").json(), "candidates.min_gate_mos")["value"] == 0.10
+
+
 def test_negative_value_is_rejected_on_its_field(client):
     c, _ = client
     r = c.put("/settings", json={"quality.max_de": -1})
@@ -150,6 +158,16 @@ def test_locked_key_is_rejected(client):
     c, _ = client
     r = c.put("/settings", json={"cdc.fast_length": 5})
     assert r.status_code == 422 and "cdc.fast_length" in r.json()["detail"]["errors"]
+
+
+def test_disabling_both_gate_methods_is_rejected_on_the_fair_value_field(client):
+    c, _ = client
+    before = field(c.get("/settings").json(), "fair_value.enabled")["value"]
+    r = c.put("/settings", json={"fair_value.enabled": ["pe_median", "pbv_median"]})
+    assert r.status_code == 422
+    assert set(r.json()["detail"]["errors"]) == {"fair_value.enabled"}
+    assert "gate" in r.json()["detail"]["errors"]["fair_value.enabled"]
+    assert field(c.get("/settings").json(), "fair_value.enabled")["value"] == before
 
 
 def test_empty_state_list_is_rejected(client):

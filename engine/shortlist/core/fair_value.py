@@ -131,6 +131,34 @@ def evaluate(quarterly: pd.DataFrame, price: float, peer_pes: list[float], cfg: 
     }
 
 
+def gate(items: list[dict], methods: list[str]) -> dict:
+    """The candidate gate and target read the gate methods only (design D1/D2).
+
+    Every computable gate method ≥ the threshold is the same as the lowest one ≥ it, and with one price
+    the lowest MoS is also the lowest fair value, so one row serves as gate, sort key and target.
+    """
+    by_method = {i["method"]: i for i in items}
+    rows = [
+        {
+            "method": m,
+            "label": LABELS[m],
+            "fair_value": by_method[m]["fair_value"] if m in by_method else None,
+            "mos": by_method[m]["mos"] if m in by_method else None,
+            "reason": by_method[m]["reason"] if m in by_method else "ปิดเกณฑ์นี้อยู่",
+        }
+        for m in methods
+    ]
+    done = [r for r in rows if r["mos"] is not None]
+    low = min(done, key=lambda r: r["mos"]) if done else None
+    return {
+        "methods": methods,
+        "items": rows,
+        "mos": low["mos"] if low else None,
+        "fair_value": low["fair_value"] if low else None,
+        "method": low["method"] if low else None,
+    }
+
+
 def history_gap(has_cap: pd.Series) -> dict:
     """Quarters without a market cap (no share count before a rename or merger) are skipped in the bands."""
     if has_cap.all():

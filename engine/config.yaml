@@ -49,7 +49,9 @@ risk_reward:
   max_upside: 1.0
 
 candidates:
-  min_median_mos: 0.10
+  # peer_pe และ justified_pbv เท่านั้นที่ CI ของ backtest 63 วันไม่คร่อม 0 (ดู README) เปลี่ยนต้องมีผล backtest รองรับ
+  gate_methods: [peer_pe, justified_pbv]
+  min_gate_mos: 0.10
   # backtest 3 ปี ไม่มี look-ahead: bear-approaching cross ใน 20 วัน 62.5% เทียบ bear-far 33.1% (ดู README)
   accepted_states: [bear-approaching, just-crossed]
 

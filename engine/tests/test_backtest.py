@@ -131,7 +131,7 @@ def test_method_without_value_is_a_row_with_none():
     rows, _ = bt.evaluate_date({"AAA": stock()}, T, CFG)
     peer = next(r for r in rows if r["method"] == "peer_pe")
     assert peer["fair_value"] is None and peer["mos"] is None  # no peers in the sector
-    assert {r["method"] for r in rows} == set(CFG.fair_value.enabled) | {bt.MEDIAN}
+    assert {r["method"] for r in rows} == set(CFG.fair_value.enabled) | {bt.MEDIAN, bt.GATE}
 
 
 def test_abnormal_value_is_flagged_and_kept():
@@ -143,7 +143,16 @@ def test_abnormal_value_is_flagged_and_kept():
 def test_candidate_needs_quality_and_median_mos():
     rows, _ = bt.evaluate_date({"AAA": stock()}, T, CFG)
     med = next(r for r in rows if r["method"] == bt.MEDIAN)
-    assert med["quality_passed"] and med["mos"] >= 0.10 and med["candidate"]
+    assert med["quality_passed"] and med["mos"] >= 0.10 and med["candidate_median"]
+
+
+def test_candidate_reads_the_gate_row():
+    rows, _ = bt.evaluate_date({"AAA": stock()}, T, CFG)
+    by = {r["method"]: r for r in rows}
+    gate_items = [by[m] for m in CFG.candidates.gate_methods if by[m]["mos"] is not None]
+    assert gate_items  # justified_pbv is computable; peer_pe has no peers
+    assert by[bt.GATE]["mos"] == min(r["mos"] for r in gate_items)
+    assert by[bt.GATE]["candidate"] == (by[bt.GATE]["mos"] >= CFG.candidates.min_gate_mos)
 
 
 # 1.4 metrics
@@ -164,7 +173,8 @@ def frame(rows: list[tuple], **extra) -> pd.DataFrame:
     cols = ["date", "symbol", "method", "mos", "fair_value", "ret", "max_high", "candidate"]
     df = pd.DataFrame(rows, columns=cols)
     df["date"] = pd.to_datetime(df["date"])
-    defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False}
+    defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False,
+                "candidate_median": False}
     for col, value in (defaults | extra).items():
         df[col] = value
     return df
@@ -181,10 +191,12 @@ def known_rows() -> pd.DataFrame:
         ("2023-06-30", "B", 0.20, 0.10, 11.0, True),
     ]:
         fv = 10 / (1 - mos)  # price 10
-        rows += [(d, sym, "pe_median", mos, fv, ret, high, cand), (d, sym, bt.MEDIAN, mos, fv, ret, high, cand)]
+        rows += [(d, sym, m, mos, fv, ret, high, cand) for m in ("pe_median", bt.MEDIAN, bt.GATE)]
     rows.append(("2023-06-30", "C", "pe_median", None, None, None, None, False))  # horizon not passed
     rows.append(("2023-06-30", "D", "pe_median", None, None, 0.3, 12.0, False))  # method not computable
-    return frame(rows)
+    df = frame(rows)
+    df["candidate_median"] = df["candidate"]  # both rules pick the same stocks unless a test says otherwise
+    return df
 
 
 def test_excess_is_per_date_then_summarized():
@@ -252,7 +264,28 @@ def test_clean_drops_abnormal_from_the_group_but_not_the_baseline():
     clean = m["clean"].set_index("group")
     assert clean.loc["pe_median", "excess_dates"] == 1  # A was the only pick on day 1
     assert clean.loc["pe_median", "excess_mean"] == pytest.approx(0.05)  # day 2 against the same baseline 0.05
-    assert clean.loc[bt.CANDIDATE, "excess_dates"] == 1  # the median row of A was abnormal too
+    assert clean.loc[bt.CANDIDATE, "excess_dates"] == 1  # the gate row of A was abnormal too
+
+
+def test_each_candidate_group_drops_the_abnormal_row_of_its_own_rule():
+    rows = known_rows()
+    a_day1 = (rows["symbol"] == "A") & (rows["date"] == "2023-03-31")
+    rows.loc[a_day1 & (rows["method"] == bt.GATE), "abnormal"] = True
+    clean = bt.metrics(rows, 0.10)["clean"].set_index("group")
+    assert clean.loc[bt.CANDIDATE, "excess_dates"] == 1  # A's gate row was the only pick on day 1
+    assert clean.loc[bt.CANDIDATE_MEDIAN, "excess_dates"] == 2  # the median row of A is fine
+    rows.loc[a_day1, "abnormal"] = False
+    rows.loc[a_day1 & (rows["method"] == bt.MEDIAN), "abnormal"] = True
+    clean = bt.metrics(rows, 0.10)["clean"].set_index("group")
+    assert (clean.loc[bt.CANDIDATE, "excess_dates"], clean.loc[bt.CANDIDATE_MEDIAN, "excess_dates"]) == (2, 1)
+
+
+def test_candidate_hit_is_measured_against_the_gate_fair_value():
+    rows = known_rows()
+    rows.loc[rows["method"] == bt.GATE, "fair_value"] = 1.0  # every High reaches it
+    s = bt.metrics(rows, 0.10)["summary"].set_index("group")
+    assert s.loc[bt.CANDIDATE, "hit_rate"] == 1.0
+    assert s.loc[bt.CANDIDATE_MEDIAN, "hit_rate"] == 0.0
 
 
 def test_longer_horizon_counts_only_dates_that_reached_it():
@@ -353,7 +386,7 @@ def test_report_has_every_section():
         meta={"run_date": "2026-10-15", "commit": "abc1234", "dirty": True, "cache_date": "2026-10-14"},
         cfg=CFG, dates=DATES, universe=6, excluded={"SCAP": "split หรือปันผลเป็นหุ้น 2022-05-10 ratio 2"},
         failures={"XYZ": "ดึงงบไม่ได้: ValueError"}, skipped=skipped, poisoned=DATES[:5], rows=df,
-        result=bt.metrics(df, CFG.candidates.min_median_mos),
+        result=bt.metrics(df, CFG.candidates.min_gate_mos),
     )
     assert "`abc1234 (มีการแก้ที่ยังไม่ commit)`" in md
     for part in ["วันที่ของ cache: 2026-10-14", "2021-03-31 ถึง 2024-06-30 (14 วัน", "structure_change_threshold",
@@ -361,9 +394,9 @@ def test_report_has_every_section():
                  "## แยกตาม bucket ของ MoS", "## ต่อวันที่ทดสอบ", "SCAP", "## ค่าประเมินผิดปกติ", "XYZ",
                  "survivorship bias", "restate", "thaifin อย่างเดียว", "ไม่เป็นอิสระ",
                  "| 95% CI | t |", "## ผลรวมแบบไม่นับค่าผิดปกติ", "## ต่อระยะวัดผล", "median excess 252 วัน",
-                 "| candidate % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
+                 "| candidate % | candidate (median) | candidate (median) % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
                  "48 ช่วงความเชื่อมั่น"]:
         assert part in md, part
-    for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.CANDIDATE, bt.RELATIVE]:
+    for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.GATE, bt.CANDIDATE, bt.CANDIDATE_MEDIAN, bt.RELATIVE]:
         assert f"| {method} |" in md, method
     assert md.count("| candidate (relative) (สลับ MoS) |") == 2  # summary and clean

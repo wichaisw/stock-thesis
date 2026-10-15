@@ -75,11 +75,11 @@ flowchart LR
     P --> STALE["'ราคาไม่อัปเดต' tag<br/>(latest bar older than other stocks)"]
     Q --> GATE["Quality gate<br/>ROE TTM, D/E, OCF, no loss"]
     Q --> FV
-    M --> FV["Fair value panel<br/>PE band, PBV band, dividend yield band,<br/>peer PE, justified PBV<br/>→ median MoS"]
+    M --> FV["Fair value panel<br/>PE band, PBV band, dividend yield band,<br/>peer PE, justified PBV<br/>→ gate = lower MoS of<br/>peer PE and justified PBV"]
     D --> FV
     FV --> RR
 
-    LIQ & GATE & FV & CDC --> LIST["Candidate list<br/>liquid, quality gate passed, MoS ≥ 10%,<br/>CDC bear-approaching or just-crossed"]
+    LIQ & GATE & FV & CDC --> LIST["Candidate list<br/>liquid, quality gate passed,<br/>every computable gate method MoS ≥ 10%,<br/>CDC bear-approaching or just-crossed"]
 ```
 
 ## Things worth knowing

@@ -300,10 +300,10 @@ def evaluate_stock(
     if quarterly is not None:
         peers = fair_value.peers_for(info.symbol, info.sector, pe_by_symbol)
         fv = fair_value.evaluate(quarterly, price, peers, cfg.fair_value, caps)
+        # the run's threshold travels with the gate, like liquidity.threshold, so the detail page shows what was applied
+        fv["gate"] = fair_value.gate(fv["items"], cfg.candidates.gate_methods) | {"min_mos": cfg.candidates.min_gate_mos}
         ev["quality"] = quality.evaluate(quarterly, info.sector, cfg.quality)
         ev["fair_value"] = fv
-        ev["risk_reward"] = risk_reward.evaluate(
-            prices, cdc_result.get("slow"), fv["summary"], cfg.risk_reward
-        )
+        ev["risk_reward"] = risk_reward.evaluate(prices, cdc_result.get("slow"), fv, cfg.risk_reward)
     ev["inclusion"] = candidates.inclusion(ev, cfg.candidates)
     return ev

@@ -60,7 +60,10 @@ def settings_fields(cfg: Config, defaults: Config) -> list[dict]:
         } | _limits(field)
         if extra["unit"] == "choice":
             (literal,) = get_args(field.annotation)
-            item |= {"type": "choice", "options": [{"value": v, "label": OPTION_LABELS[v]} for v in get_args(literal)]}
+            gate = set(cfg.candidates.gate_methods)
+            item |= {"type": "choice", "options": [
+                {"value": v, "label": OPTION_LABELS[v] + (" · gate method" if v in gate else "")} for v in get_args(literal)
+            ]}
         else:
             item["type"] = "int" if field.annotation is int else "float"
         fields.append(item)
@@ -162,7 +165,8 @@ def create_app(
         except ValidationError as e:
             errors: dict[str, str] = {}
             for err in e.errors():
-                key = ".".join(map(str, err["loc"][:2]))
+                # the only model-level rule is the gate-method check, which belongs to this field
+                key = ".".join(map(str, err["loc"][:2])) or "fair_value.enabled"
                 errors.setdefault(key, thai_error(err, units.get(key, "")))
             raise HTTPException(422, {"errors": errors})
         defaults = load_config(config_path)

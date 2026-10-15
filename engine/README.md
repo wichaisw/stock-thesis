@@ -52,6 +52,12 @@ batch, CLI (cron) และหน้ารายละเอียดหุ้�
 
 ## ผลตรวจข้อมูล
 
+### Fair value backtest รอบแรก (change `backtest-fair-value` task 3.1, 15 ต.ค. 2026)
+
+22 วันที่ทดสอบ (2021Q1–2026Q2) 524 หุ้น 3,992 การประเมิน poison check ผ่าน placebo (เฉลี่ย 20 รอบ) อยู่ที่ +0.0% ถึง +0.7% ต่อไตรมาส ตัดหุ้นออก 29% (219 จาก 743) ผลจึงเป็นของหุ้นที่เหลือเท่านั้น
+excess ต่อไตรมาสเทียบ placebo: peer_pe +1.8% (placebo +0.4%), justified_pbv +1.6% (+0.6%), pe_minus_1sd +1.9% (+0.7%), candidate +0.5% (+0.0%) ส่วน pe_median, pbv_median, dividend_yield_median และ median ไม่ต่างจาก placebo และ bucket MoS สูงไม่ได้ผลตอบแทนสูงกว่า
+spot-check PTT เจอว่ากำไรสุทธิ thaifin ในงบเก่าสูงกว่า SET (FY2022 +28.5%, FY2023 +10.6%) PE TTM ช่วงต้นจึงต่ำเกินจริง ยังไม่แก้ ผลเต็ม: [docs/backtests/fair-value-2026-10-15.md](../docs/backtests/fair-value-2026-10-15.md)
+
 ### กำไรสุทธิและส่วนผู้ถือหุ้นของ yfinance (change `prefer-yfinance-statements` task 1.1, 15 ต.ค. 2026)
 
 เทียบ `Net Income Common Stockholders` (`quarterly_income_stmt`) และ `Stockholders Equity` (`quarterly_balance_sheet`) ของ yfinance กับ `net_profit`, `equity` ของ thaifin ทุกไตรมาสที่ yfinance มี (2Q25–2Q26) และกับงบรวมบน SET (`/api/set/stock/<SYM>/company-highlight/financial-data` ให้แค่งวดปี 2025 และ 6M26) หน่วยล้านบาท

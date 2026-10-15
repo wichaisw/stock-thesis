@@ -30,6 +30,8 @@ Catches bugs like SKY's dividend yield band, which gave a fair value of 1,533 ba
 
 4. Report the flag counts per rule and what each flagged symbol turned out to be. Don't silence a rule to get a clean run. Change a threshold only with the user's agreement.
 
+5. After changing `core/fair_value`, also run the `fair-value-backtest` skill and compare with the previous file in `docs/backtests/`.
+
 ## Rules
 
 | Rule | Why |

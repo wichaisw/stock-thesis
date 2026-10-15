@@ -37,6 +37,17 @@ const CHECK_LABELS: Record<string, string> = {
   no_loss: "ไม่ขาดทุน",
 };
 
+const GATE_HELP: Record<string, string> = {
+  liquidity:
+    "มูลค่าซื้อขายเฉลี่ยต่อวันช่วงล่าสุด หุ้นที่ต่ำกว่าเกณฑ์ถูกตัดก่อนดึงงบ เพราะหุ้นสภาพคล่องต่ำมักใช้เวลานานกว่าจะ re-rate ต้องผ่านเสมอ",
+  min_quarters:
+    "จำนวนไตรมาสที่มีงบครบ ถ้าน้อยเกินไปจะดูความสม่ำเสมอและ band ย้อนหลังไม่ได้ ต้องผ่านเสมอ ไม่ผ่านแล้วไม่ประเมินเกณฑ์อื่นต่อ",
+  roe: "กำไรสุทธิ 4 ไตรมาสล่าสุด ÷ ส่วนผู้ถือหุ้น วัดว่าบริษัททำกำไรจากเงินทุนได้ดีแค่ไหน",
+  de: "หนี้สินต่อส่วนผู้ถือหุ้นไตรมาสล่าสุด หนี้สูงเสี่ยงเมื่อดอกเบี้ยขึ้นหรือกำไรตก ข้ามสำหรับหุ้นการเงินเพราะหนี้คือธุรกิจหลัก",
+  ocf: "นับไตรมาสล่าสุดที่เงินสดจากการดำเนินงานเป็นบวก ดูว่ากำไรเป็นเงินสดจริง ไม่ใช่ลูกหนี้หรือสต็อกพอก ข้ามสำหรับหุ้นการเงิน",
+  no_loss: "ต้องมีกำไรสุทธิทุกไตรมาสในช่วงล่าสุด ขาดทุนไตรมาสเดียวก็ไม่ผ่าน",
+};
+
 export default function StockPage({ params }: PageProps<"/stocks/[symbol]">) {
   return (
     <Suspense fallback={<p className="text-zinc-500">กำลังโหลด…</p>}>
@@ -158,6 +169,10 @@ function Verdict({ passed }: { passed: boolean | null }) {
   return passed ? <span className="text-emerald-600">✓ ผ่าน</span> : <span className="text-red-600">✗ ไม่ผ่าน</span>;
 }
 
+function checkLabel(name: string): string {
+  return name === "liquidity" ? "Liquidity" : (CHECK_LABELS[name] ?? name);
+}
+
 function Gates({ ev }: { ev: Evaluation }) {
   const rows = gateRows(ev, `≥ ${(ev.liquidity.threshold / 1e6).toLocaleString()} ลบ./วัน`);
   const tally = gateTally(rows);
@@ -174,8 +189,11 @@ function Gates({ ev }: { ev: Evaluation }) {
         </thead>
         <tbody>
           {rows.map((c) => (
-            <tr key={c.name} className="border-t border-zinc-100 dark:border-zinc-800">
-              <td className="py-1">{c.name === "liquidity" ? "Liquidity" : (CHECK_LABELS[c.name] ?? c.name)}</td>
+            <tr key={c.name} className="relative border-t border-zinc-100 dark:border-zinc-800">
+              <td className="py-1">
+                {checkLabel(c.name)}
+                {GATE_HELP[c.name] && <Tooltip id={`tip-gate-${c.name}`} text={GATE_HELP[c.name]} label={checkLabel(c.name)} />}
+              </td>
               <td className="py-1">
                 <Verdict passed={c.passed} />
               </td>
@@ -211,8 +229,13 @@ function FairValueGate({ ev }: { ev: Evaluation }) {
       <table className="w-full text-sm">
         <tbody>
           {gate.items.map((i) => (
-            <tr key={i.method} className="border-t border-zinc-100 dark:border-zinc-800">
-              <td className="py-1">{METHOD_SHORT[i.method] ?? i.method}</td>
+            <tr key={i.method} className="relative border-t border-zinc-100 dark:border-zinc-800">
+              <td className="py-1">
+                {METHOD_SHORT[i.method] ?? i.method}
+                {FAIR_VALUE_HELP[i.method] && (
+                  <Tooltip id={`tip-gate-${i.method}`} text={FAIR_VALUE_HELP[i.method]} label={METHOD_SHORT[i.method] ?? i.method} />
+                )}
+              </td>
               <td className="py-1">
                 {i.mos === null ? <span className="text-zinc-500">คำนวณไม่ได้</span> : <Verdict passed={i.mos >= gate.min_mos} />}
               </td>

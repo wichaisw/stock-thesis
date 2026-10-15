@@ -167,10 +167,8 @@ export type InvestorFlowDay = {
   intraday: boolean;
 } & Record<`${InvestorType}_${"buy" | "sell"}`, number>;
 
-// siamchart backfill: net only, and local_institution includes proprietary
-export type NetFlowDay = {
-  date: string;
-  local_institution_net: number;
-  foreign_net: number;
-  individual_net: number;
-};
+// one month of the 1-year chart: net value in baht, cumulative from the first month of the set
+export type MonthlyNetPoint = {
+  month: string;
+  fetched_at: string;
+} & Record<`${InvestorType}_net`, number>;

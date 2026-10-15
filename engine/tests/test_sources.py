@@ -8,8 +8,7 @@ import pandas as pd
 
 from shortlist.sources import QUARTERLY_COLUMNS, FinancialSource, InvestorFlowSource, PriceSource
 from shortlist.sources.preferred import PreferredStatements
-from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow
-from shortlist.sources.siamchart import to_net_flows
+from shortlist.sources.set_investor import SetInvestorFlow, to_investor_flow, to_monthly_net
 from shortlist.sources.thaifin_source import ThaifinFinancials, to_quarterly, to_stock_info
 from shortlist.sources.yahoo import YahooPrices, clean_prices, fetch_statements, quarterly_market_cap, to_statements
 from tests.fakes import FakeFinancials
@@ -231,23 +230,38 @@ def test_investor_flow_rejects_sum_off_total():
         to_investor_flow(raw)
 
 
-def siamchart_raw() -> list[list[str]]:
-    return json.loads((Path(__file__).parent / "fixtures" / "siamchart_market_data_2026-10-14.json").read_text())
+def chart_raw() -> list[dict]:
+    return json.loads((Path(__file__).parent / "fixtures" / "investor_type_chart_1y_2026-10-15.json").read_text())
 
 
-def test_net_flows_keep_since_and_convert_to_baht():
-    flows = to_net_flows(siamchart_raw(), since=date(2025, 10, 15))
-    assert flows[0].date >= date(2025, 10, 15) and flows[-1].date == date(2026, 10, 14)
-    last = flows[-1]
-    # matches SET for 14 Oct: institution -692.81 + proprietary +113.86
-    assert (last.local_institution, last.foreign, last.individual) == (-578_950_000, 5_690_990_000, -5_112_040_000)
+def test_monthly_net_parses_13_points_of_the_set_fixture():
+    points = to_monthly_net(chart_raw())
+    assert [p.month for p in points][::12] == ["2025-10", "2026-10"] and len(points) == 13
+    # settrade.com shows -113,706 million for institution at Oct 69
+    assert points[-1].net["institution"] == pytest.approx(-113_706_161_059.01)
 
 
-def test_net_flows_reject_the_day_that_does_not_sum_to_zero():
-    raw = siamchart_raw()
-    raw[-2][2] = str(float(raw[-2][2]) + 100)
-    with pytest.raises(ValueError, match=raw[-2][0]):
-        to_net_flows(raw, since=date(2025, 10, 15))
+def test_monthly_net_rejects_a_point_missing_a_type():
+    raw = chart_raw()
+    del raw[3]["proprietary"]
+    with pytest.raises(ValueError, match="2026-01.*proprietary"):
+        to_monthly_net(raw)
+
+
+def test_monthly_net_rejects_nets_not_summing_to_zero():
+    raw = chart_raw()
+    raw[5]["foreign"] += 1.5e6
+    with pytest.raises(ValueError, match="2026-03"):
+        to_monthly_net(raw)
+    raw[5]["foreign"] -= 1.4e6  # 0.1 million off is rounding, kept
+    assert len(to_monthly_net(raw)) == 13
+
+
+def test_monthly_net_rejects_a_repeated_month():
+    raw = chart_raw()
+    raw.append(raw[-1])
+    with pytest.raises(ValueError, match="2026-10"):
+        to_monthly_net(raw)
 
 
 def yahoo_statements(currency: str | None = "THB"):

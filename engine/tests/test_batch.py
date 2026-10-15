@@ -15,6 +15,7 @@ from tests.fakes import (
     healthy_quarters,
     investor_flow,
     market_caps,
+    monthly_net,
     price_history,
 )
 
@@ -283,27 +284,56 @@ def test_investor_flow_is_recorded_after_the_run(tmp_path):
     batch.run(conn, *fake_sources(), CFG, log=lines.append, flow_src=FakeInvestorFlow())
     assert [r["date"] for r in db.investor_flow(conn)] == ["2026-10-14"]
     assert any("เก็บข้อมูลประเภทนักลงทุนของวันที่ 2026-10-14" in ln for ln in lines)
+    assert [r["month"] for r in db.monthly_net(conn)] == ["2026-09", "2026-10"]
+    assert any("เก็บกราฟประเภทนักลงทุนรายเดือน 2 จุด" in ln for ln in lines)
 
 
 @pytest.mark.parametrize(
-    "error, logged",
+    "fake, logged",
     [
-        (ConnectionError("Incapsula blocked"), "ดึงข้อมูลประเภทนักลงทุนไม่ได้"),
-        (ValueError("ขาดประเภทนักลงทุน: proprietary"), "ไม่ผ่านการตรวจ"),
+        (FakeInvestorFlow(error=ConnectionError("Incapsula blocked")), "ดึงข้อมูลประเภทนักลงทุนไม่ได้"),
+        (FakeInvestorFlow(daily_error="ขาดประเภทนักลงทุน: proprietary", monthly_error="HTTP 400"), "ไม่ผ่านการตรวจ"),
     ],
 )
-def test_investor_flow_failure_leaves_run_and_history_alone(tmp_path, error, logged):
+def test_investor_flow_failure_leaves_run_and_history_alone(tmp_path, fake, logged):
     conn = db.connect(tmp_path / "t.db")
     batch.run(conn, *fake_sources(), CFG, flow_src=FakeInvestorFlow(investor_flow(foreign_buy=40e9)))
     lines: list[str] = []
-    run_id = batch.run(conn, *fake_sources(), CFG, log=lines.append, flow_src=FakeInvestorFlow(error=error))
+    run_id = batch.run(conn, *fake_sources(), CFG, log=lines.append, flow_src=fake)
 
     run = db.get_run(conn, run_id)
     assert run["status"] == "succeeded" and (run["succeeded"], run["failed"]) == (2, 2)
     assert db.evaluation(conn, run_id, "AAA") is not None
     [row] = db.investor_flow(conn)
     assert row["foreign_buy"] == 40e9
-    assert any(logged in ln and str(error) in ln for ln in lines), lines
+    assert len(db.monthly_net(conn)) == 2
+    assert any(logged in ln for ln in lines), lines
+
+
+def test_bad_monthly_chart_still_keeps_daily_and_logs(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    batch.run(conn, *fake_sources(), CFG, flow_src=FakeInvestorFlow(monthly=monthly_net(foreign=7e9)))
+    lines: list[str] = []
+    error = batch.record_investor_flow(
+        conn,
+        FakeInvestorFlow(investor_flow(foreign_buy=40e9), monthly_error="เดือน 2026-10 ขาดประเภทนักลงทุน: foreign"),
+        lines.append,
+    )
+    assert error is None
+    assert db.investor_flow(conn)[0]["foreign_buy"] == 40e9
+    assert [r["foreign_net"] for r in db.monthly_net(conn)] == [7e9, 7e9]
+    assert any("กราฟประเภทนักลงทุนรายเดือนไม่ผ่านการตรวจ" in ln and "foreign" in ln for ln in lines), lines
+
+
+def test_bad_daily_still_keeps_monthly_chart_and_logs(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    lines: list[str] = []
+    fake = FakeInvestorFlow(monthly=monthly_net(("2025-10", "2025-11", "2025-12")), daily_error="ผลรวมมูลค่าขาย ต่าง เกิน 1%")
+    error = batch.record_investor_flow(conn, fake, lines.append)
+    assert error and "ผลรวมมูลค่าขาย" in error
+    assert db.investor_flow(conn) == []
+    assert [r["month"] for r in db.monthly_net(conn)] == ["2025-10", "2025-11", "2025-12"]
+    assert any("ข้อมูลประเภทนักลงทุนไม่ผ่านการตรวจ" in ln for ln in lines), lines
 
 
 def test_failing_supplementary_statements_still_evaluate_the_stock(tmp_path):

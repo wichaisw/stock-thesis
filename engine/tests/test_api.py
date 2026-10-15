@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from shortlist import db
 from shortlist.api import create_app
 from shortlist.sources import StockInfo
-from tests.fakes import FakeFinancials, FakeInvestorFlow, FakePrices, healthy_quarters, investor_flow, price_history
+from tests.fakes import FakeFinancials, FakeInvestorFlow, FakePrices, healthy_quarters, investor_flow, monthly_net, price_history
 
 TODAY = date(2026, 10, 14)
 
@@ -237,4 +237,12 @@ def test_investor_flow_newest_first_with_limit_and_intraday(client):
     assert rows[0]["foreign_buy"] == 50e9 and "total_value" in rows[0] and "fetched_at" in rows[0]
     assert [r["date"] for r in c.get("/investor-flow?limit=1").json()] == ["2026-10-14"]
     assert c.get("/investor-flow?limit=0").status_code == 422
-    assert c.get("/investor-flow/history").json() == []
+
+
+def test_investor_flow_monthly_oldest_first_or_empty(client):
+    c, path = client
+    assert c.get("/investor-flow/monthly").json() == []
+    db.save_monthly_net(db.connect(path), monthly_net(("2025-10", "2025-11", "2026-10")))
+    rows = c.get("/investor-flow/monthly").json()
+    assert [r["month"] for r in rows] == ["2025-10", "2025-11", "2026-10"]
+    assert rows[0]["foreign_net"] == 5e9 and "fetched_at" in rows[0]

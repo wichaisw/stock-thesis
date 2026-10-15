@@ -122,20 +122,27 @@ def execute(
 
 
 def record_investor_flow(conn: sqlite3.Connection, src: InvestorFlowSource, log: Log) -> str | None:
-    """Never raises: a batch run must not fail on this (design D3). Returns why nothing was saved, else None."""
+    """Never raises: a batch run must not fail on this (design D3). Daily and monthly parts are saved apart (D5).
+    Returns why the daily part was not saved, else None."""
     started = time.monotonic()
     try:
-        flow = src.fetch_investor_flow()
-    except ValueError as e:
-        error = f"ข้อมูลประเภทนักลงทุนไม่ผ่านการตรวจ ไม่เก็บ: {e}"
+        got = src.fetch_investor_flow()
     except Exception as e:
         error = f"ดึงข้อมูลประเภทนักลงทุนไม่ได้: {type(e).__name__}: {e}"
+        log(error)
+        return error
+    if got.monthly is None:
+        log(f"กราฟประเภทนักลงทุนรายเดือนไม่ผ่านการตรวจ ไม่เก็บ: {got.monthly_error}")
     else:
-        db.save_investor_flow(conn, flow)
-        log(f"เก็บข้อมูลประเภทนักลงทุนของวันที่ {flow.date} ({time.monotonic() - started:.0f} วินาที)")
-        return None
-    log(error)
-    return error
+        db.save_monthly_net(conn, got.monthly)
+        log(f"เก็บกราฟประเภทนักลงทุนรายเดือน {len(got.monthly)} จุด ถึงเดือน {got.monthly[-1].month}")
+    if got.daily is None:
+        error = f"ข้อมูลประเภทนักลงทุนไม่ผ่านการตรวจ ไม่เก็บ: {got.daily_error}"
+        log(error)
+        return error
+    db.save_investor_flow(conn, got.daily)
+    log(f"เก็บข้อมูลประเภทนักลงทุนของวันที่ {got.daily.date} ({time.monotonic() - started:.0f} วินาที)")
+    return None
 
 
 def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log) -> db.RunResults:

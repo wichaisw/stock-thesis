@@ -2,7 +2,8 @@ import { Suspense } from "react";
 
 import { Tag } from "@/app/badges";
 import { FetchButton } from "@/app/investor-flow/fetch-button";
-import { engine, INVESTOR_TYPES, type InvestorFlowDay, type InvestorType, type NetFlowDay } from "@/lib/engine";
+import { MonthlyChart } from "@/app/investor-flow/monthly-chart";
+import { engine, INVESTOR_TYPES, type InvestorFlowDay, type InvestorType, type MonthlyNetPoint } from "@/lib/engine";
 import { thaiDate, thaiDateTime } from "@/lib/format";
 
 const LABEL: Record<InvestorType, string> = {
@@ -30,9 +31,9 @@ export default function InvestorFlowPage() {
 }
 
 async function FlowTable() {
-  const [days, history] = await Promise.all([
+  const [days, monthly] = await Promise.all([
     engine<InvestorFlowDay[]>("/investor-flow"),
-    engine<NetFlowDay[]>("/investor-flow/history"),
+    engine<MonthlyNetPoint[]>("/investor-flow/monthly"),
   ]);
   const th = "px-3 py-2 font-medium";
   const cell = "px-3 py-2 text-right whitespace-nowrap";
@@ -46,6 +47,14 @@ async function FlowTable() {
         </div>
         <FetchButton />
       </div>
+
+      {monthly.length === 0 ? (
+        <p className="rounded-md border border-dashed border-zinc-300 p-8 text-center text-zinc-500 dark:border-zinc-700">
+          ยังไม่มีข้อมูลกราฟรายเดือน กราฟจะแสดงหลังดึงข้อมูลประเภทนักลงทุนสำเร็จครั้งแรก
+        </p>
+      ) : (
+        <MonthlyChart points={monthly} labels={LABEL} />
+      )}
 
       {days.length === 0 ? (
         <p className="rounded-md border border-dashed border-zinc-300 p-8 text-center text-zinc-500 dark:border-zinc-700">
@@ -100,48 +109,7 @@ async function FlowTable() {
           </table>
         </div>
       )}
-
-      {history.length > 0 && <NetHistory days={history} />}
     </div>
-  );
-}
-
-function NetHistory({ days }: { days: NetFlowDay[] }) {
-  const th = "px-3 py-2 font-medium text-right";
-  const cell = "px-3 py-2 text-right whitespace-nowrap font-medium";
-  return (
-    <section className="space-y-2">
-      <div>
-        <h2 className="text-lg font-semibold">ย้อนหลัง 1 ปี (สุทธิเท่านั้น)</h2>
-        <p className="text-sm text-zinc-500">
-          ที่มา siamchart.com ไม่มีมูลค่าซื้อ/ขาย และสถาบันในประเทศรวมบัญชีบริษัทหลักทรัพย์ หน่วยล้านบาท
-        </p>
-      </div>
-      <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">วันที่</th>
-              <th className={th}>สถาบันในประเทศ + บล.</th>
-              <th className={th}>{LABEL.foreign}</th>
-              <th className={th}>{LABEL.individual}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((d) => (
-              <tr key={d.date} className="border-t border-zinc-200 dark:border-zinc-800">
-                <td className="px-3 py-2 whitespace-nowrap">{thaiDate(d.date)}</td>
-                {[d.local_institution_net, d.foreign_net, d.individual_net].map((v, i) => (
-                  <td key={i} className={`${cell} ${netTone(v)}`}>
-                    {million(v, true)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 

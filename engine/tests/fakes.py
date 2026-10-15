@@ -3,7 +3,7 @@ from datetime import date
 import numpy as np
 import pandas as pd
 
-from shortlist.sources import INVESTOR_TYPES, MARKET_CAP_COLUMNS, QUARTERLY_COLUMNS, InvestorFlow, StockInfo
+from shortlist.sources import INVESTOR_TYPES, MARKET_CAP_COLUMNS, QUARTERLY_COLUMNS, InvestorFlow, InvestorFlowFetch, MonthlyNetFlow, StockInfo
 
 
 def price_history(days: int = 120, start: float = 10.0, end: float = 12.0) -> pd.DataFrame:
@@ -82,12 +82,33 @@ def investor_flow(day: date = date(2026, 10, 14), foreign_buy: float = 50e9) -> 
     return InvestorFlow(day, sum(buy.values()), buy, dict(buy))
 
 
-class FakeInvestorFlow:
-    def __init__(self, flow: InvestorFlow | None = None, error: Exception | None = None):
-        self.flow = flow or investor_flow()
-        self.error = error
+def monthly_net(months: tuple[str, ...] = ("2026-09", "2026-10"), foreign: float = 5e9) -> list[MonthlyNetFlow]:
+    return [MonthlyNetFlow(m, {"institution": -foreign, "proprietary": 1e9, "foreign": foreign, "individual": -1e9}) for m in months]
 
-    def fetch_investor_flow(self) -> InvestorFlow:
+
+class FakeInvestorFlow:
+    """`error` fails the whole page load; `daily_error`/`monthly_error` fail one part's validation."""
+
+    def __init__(
+        self,
+        flow: InvestorFlow | None = None,
+        error: Exception | None = None,
+        monthly: list[MonthlyNetFlow] | None = None,
+        daily_error: str | None = None,
+        monthly_error: str | None = None,
+    ):
+        self.flow = flow or investor_flow()
+        self.monthly = monthly or monthly_net()
+        self.error = error
+        self.daily_error = daily_error
+        self.monthly_error = monthly_error
+
+    def fetch_investor_flow(self) -> InvestorFlowFetch:
         if self.error:
             raise self.error
-        return self.flow
+        return InvestorFlowFetch(
+            None if self.daily_error else self.flow,
+            None if self.monthly_error else self.monthly,
+            self.daily_error,
+            self.monthly_error,
+        )

@@ -73,18 +73,28 @@ class InvestorFlow:
     sell: dict[str, float]
 
 
-@runtime_checkable
-class InvestorFlowSource(Protocol):
-    def fetch_investor_flow(self) -> InvestorFlow:
-        """The latest trading day. Raises ValueError when the data fails validation."""
-        ...
+@dataclass(frozen=True)
+class MonthlyNetFlow:
+    """One month of SET net value (buy − sell) by investor type in baht, cumulative from the first month of the set."""
+
+    month: str  # "2026-10"
+    net: dict[str, float]
 
 
 @dataclass(frozen=True)
-class NetFlow:
-    """One trading day of SET net value (buy − sell) in baht; local_institution includes proprietary (siamchart merges them)."""
+class InvestorFlowFetch:
+    """Both parts come from one page load but are validated apart, so one can be kept when the other fails.
+    A failed part is None with its reason in the matching *_error."""
 
-    date: date
-    local_institution: float
-    foreign: float
-    individual: float
+    daily: InvestorFlow | None
+    monthly: list[MonthlyNetFlow] | None
+    daily_error: str | None = None
+    monthly_error: str | None = None
+
+
+@runtime_checkable
+class InvestorFlowSource(Protocol):
+    def fetch_investor_flow(self) -> InvestorFlowFetch:
+        """The latest trading day and the 1-year monthly net chart. Raises when the page cannot be fetched at all."""
+        ...
+

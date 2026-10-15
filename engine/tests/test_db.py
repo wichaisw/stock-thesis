@@ -1,3 +1,4 @@
+import sqlite3
 import threading
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
@@ -5,8 +6,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from shortlist import db
-from shortlist.sources import QUARTERLY_COLUMNS, NetFlow, StockInfo
-from tests.fakes import investor_flow
+from shortlist.sources import QUARTERLY_COLUMNS, StockInfo
+from tests.fakes import investor_flow, monthly_net
 
 BKK = ZoneInfo("Asia/Bangkok")
 
@@ -153,13 +154,17 @@ def test_save_run_keeps_investor_flow_history(tmp_path):
     assert [r["date"] for r in db.investor_flow(conn)] == ["2026-10-13"]
 
 
-def test_net_flow_history_rerun_has_no_duplicates_and_skips_set_days(tmp_path):
+def test_monthly_net_refetch_replaces_the_whole_set(tmp_path):
     conn = db.connect(tmp_path / "t.db")
-    flows = [NetFlow(date(2026, 10, d), 1e6, 2e6, -3e6) for d in (9, 12, 14)]
-    db.save_net_flows(conn, flows)
-    db.save_net_flows(conn, flows[1:] + [NetFlow(date(2026, 10, 12), 5e6, 2e6, -7e6)])
-    db.save_investor_flow(conn, investor_flow(date(2026, 10, 14)))
+    db.save_monthly_net(conn, monthly_net(("2025-09", "2025-10", "2026-09")), datetime(2026, 9, 30, 18, 0, tzinfo=BKK))
+    db.save_monthly_net(conn, monthly_net(("2025-10", "2026-10"), foreign=9e9), datetime(2026, 10, 15, 18, 0, tzinfo=BKK))
+    rows = db.monthly_net(conn)
+    assert [(r["month"], r["foreign_net"]) for r in rows] == [("2025-10", 9e9), ("2026-10", 9e9)]
+    assert {r["fetched_at"] for r in rows} == {"2026-10-15T18:00:00+07:00"}
 
-    rows = db.net_flow_history(conn)
-    assert [(r["date"], r["local_institution_net"]) for r in rows] == [("2026-10-12", 5e6), ("2026-10-09", 1e6)]
-    assert len(db.net_flow_history(conn, limit=1)) == 1
+
+def test_connect_drops_the_old_net_only_table(tmp_path):
+    path = tmp_path / "t.db"
+    sqlite3.connect(path).execute("CREATE TABLE investor_flow_net (date TEXT)").connection.commit()
+    tables = {r[0] for r in db.connect(path).execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert "investor_flow_net" not in tables and "investor_flow_monthly" in tables

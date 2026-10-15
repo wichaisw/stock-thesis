@@ -225,9 +225,9 @@ def create_app(
     def investor_flow(limit: int = Query(60, ge=1), c: sqlite3.Connection = Depends(conn)) -> list[dict]:
         return db.investor_flow(c, limit)
 
-    @app.get("/investor-flow/history")
-    def investor_flow_history(limit: int = Query(260, ge=1), c: sqlite3.Connection = Depends(conn)) -> list[dict]:
-        return db.net_flow_history(c, limit)
+    @app.get("/investor-flow/monthly")
+    def investor_flow_monthly(c: sqlite3.Connection = Depends(conn)) -> list[dict]:
+        return db.monthly_net(c)
 
     @app.post("/investor-flow")
     def fetch_investor_flow(c: sqlite3.Connection = Depends(conn)) -> dict:

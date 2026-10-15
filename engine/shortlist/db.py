@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from shortlist.sources import INVESTOR_TYPES, QUARTERLY_COLUMNS, InvestorFlow, NetFlow, StockInfo
+from shortlist.sources import INVESTOR_TYPES, QUARTERLY_COLUMNS, InvestorFlow, MonthlyNetFlow, StockInfo
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "shortlist.db"
 
@@ -71,12 +71,10 @@ CREATE TABLE IF NOT EXISTS investor_flow (
     {", ".join(f"{c} REAL NOT NULL" for c in FLOW_COLUMNS)},
     fetched_at TEXT NOT NULL
 );
--- net-only backfill from siamchart (design D5); local_institution_net includes proprietary
-CREATE TABLE IF NOT EXISTS investor_flow_net (
-    date TEXT PRIMARY KEY,
-    local_institution_net REAL NOT NULL,
-    foreign_net REAL NOT NULL,
-    individual_net REAL NOT NULL,
+-- latest 1-year chart only: each set is cumulative from a different first month, so sets do not mix
+CREATE TABLE IF NOT EXISTS investor_flow_monthly (
+    month TEXT PRIMARY KEY,
+    {", ".join(f"{t}_net REAL NOT NULL" for t in INVESTOR_TYPES)},
     fetched_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -112,6 +110,8 @@ def connect(path: Path | str = DEFAULT_PATH) -> sqlite3.Connection:
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(financials_quarterly)")]
     if cols and cols[2:] != QUARTERLY_COLUMNS:
         conn.execute("DROP TABLE financials_quarterly")
+    # old net-only backfill that merged institution with proprietary; only 4-type sources are kept (investor-type-flow D5)
+    conn.execute("DROP TABLE IF EXISTS investor_flow_net")
     conn.executescript(SCHEMA)
     return conn
 
@@ -339,19 +339,18 @@ def investor_flow(conn: sqlite3.Connection, limit: int = 60) -> list[dict]:
     return out
 
 
-def save_net_flows(conn: sqlite3.Connection, flows: list[NetFlow]) -> None:
-    fetched_at = _now().isoformat()
+def save_monthly_net(conn: sqlite3.Connection, points: list[MonthlyNetFlow], fetched_at: datetime | None = None) -> None:
+    """Replaces the whole stored set."""
+    at = (fetched_at or _now()).isoformat()
     with conn:
+        conn.execute("DELETE FROM investor_flow_monthly")
         conn.executemany(
-            "INSERT OR REPLACE INTO investor_flow_net VALUES (?, ?, ?, ?, ?)",
-            [(f.date.isoformat(), f.local_institution, f.foreign, f.individual, fetched_at) for f in flows],
+            f"INSERT INTO investor_flow_monthly VALUES (?, {', '.join('?' * len(INVESTOR_TYPES))}, ?)",
+            [(p.month, *(p.net[t] for t in INVESTOR_TYPES), at) for p in points],
         )
 
 
-def net_flow_history(conn: sqlite3.Connection, limit: int = 260) -> list[dict]:
-    """Newest first, only days without SET buy/sell detail in investor_flow."""
-    rows = conn.execute(
-        "SELECT * FROM investor_flow_net WHERE date NOT IN (SELECT date FROM investor_flow) ORDER BY date DESC LIMIT ?",
-        (limit,),
-    )
-    return [dict(r) for r in rows]
+def monthly_net(conn: sqlite3.Connection) -> list[dict]:
+    """Oldest month first."""
+    return [dict(r) for r in conn.execute("SELECT * FROM investor_flow_monthly ORDER BY month")]
+

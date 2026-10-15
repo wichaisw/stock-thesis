@@ -1,6 +1,6 @@
 # Where the data comes from
 
-Almost all data comes in through the **batch**. It runs on weekdays at 17:30 (after SET closes at 16:30), or when you press "รัน batch". The web pages read only what is saved in `engine/shortlist.db`. Two things bypass the batch: the investor flow fetch button and the one-off siamchart backfill.
+Almost all data comes in through the **batch**. It runs on weekdays at 17:30 (after SET closes at 16:30), or when you press "รัน batch". The web pages read only what is saved in `engine/shortlist.db`. One thing bypasses the batch: the investor flow fetch button.
 
 For the step-by-step code view, see [batch-flow.md](batch-flow.md).
 
@@ -12,16 +12,14 @@ flowchart LR
         TF["thaifin<br/>(Finnomena data)"]
         YF["yfinance<br/>(Yahoo Finance)"]
         SET["set.or.th<br/>(opened in a hidden browser)"]
-        SC["siamchart.com<br/>(one-off, 1-year history)"]
     end
 
     YOU(["You"])
 
     TF -->|"stock list<br/>quarterly statements"| BATCH
     YF -->|"daily prices<br/>share count, dividends<br/>net income, equity"| BATCH
-    SET -->|"today's buy/sell<br/>by investor type"| BATCH
+    SET -->|"today's buy/sell by investor type<br/>1-year monthly net chart"| BATCH
     SET -.->|"or the fetch button<br/>on the investor flow page"| DB
-    SC -.->|"run once by hand<br/>(shortlist-backfill-flow)"| DB
 
     BATCH["Batch<br/>fetch → check → score"] --> DB[("shortlist.db")]
     YOU -->|"settings page<br/>(thresholds)"| DB
@@ -86,6 +84,6 @@ flowchart LR
 
 - **Prices are from yfinance, not SET.** If the batch runs before Yahoo has today's bar, some stocks show an older date. Those stocks get the "ราคาไม่อัปเดต" tag and a warning line on the candidate list.
 - **yfinance overrides thaifin only for recent quarters.** yfinance has just 5–6 quarters, so the 5-year PE/PBV bands still use thaifin's history. Stocks that report in a currency other than THB (for example, PTTEP in USD) keep thaifin's numbers.
-- **SET and siamchart block normal downloads.** The engine opens their pages in a hidden browser and reads the data from inside the page.
+- **SET blocks normal downloads.** The engine opens its page in a hidden browser and reads the data from inside the page.
 - **Only the latest run's results are kept.** Prices and statements are overwritten on every run. To compare two runs, save the candidate list before running again.
 - **Every new source or field is cross-checked first.** It's compared against SET or TradingView, and the result is recorded in `engine/README.md`, before the app relies on it.

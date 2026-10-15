@@ -60,18 +60,22 @@ backtest SHALL ไม่ใช้หุ้นที่มี split หรือ�
 - **THEN** ไฟล์ผลมีแถว excess return ของ MoS ที่สลับแบบสุ่ม (เฉลี่ย 20 รอบ seed คงที่) ข้างผลจริงของแต่ละ method
 
 ### Requirement: วัดผลที่ 63 วันทำการ
-backtest SHALL วัดผลของแต่ละการประเมินที่ 63 วันทำการหลังวันที่ทดสอบ แยกตาม method แต่ละตัว, median MoS และกลุ่ม candidate rule (ผ่าน quality gate และ median MoS ≥ `candidates.min_median_mos`) ด้วย hit rate, excess return และผลตอบแทนแยกตาม bucket ของ MoS การประเมินที่ยังไม่ครบ 63 วันทำการ SHALL ไม่ถูกนับ
+backtest SHALL วัดผลของแต่ละการประเมินที่ 63 วันทำการหลังวันที่ทดสอบ แยกตาม method แต่ละตัว, median MoS, MoS gate (MoS ที่ต่ำกว่าของ gate methods ที่คำนวณได้) และกลุ่ม candidate rule (ผ่าน quality gate และผ่าน gate ด้าน fair value ตาม `candidates.gate_methods` และ `candidates.min_gate_mos` เหมือน batch) ด้วย hit rate, excess return และผลตอบแทนแยกตาม bucket ของ MoS การประเมินที่ยังไม่ครบ 63 วันทำการ SHALL ไม่ถูกนับ
 
 #### Scenario: hit rate
 - **WHEN** method ให้ MoS > 0 กับหุ้น ณ วันที่ทดสอบ
 - **THEN** นับเป็น hit ถ้าราคาสูงสุดของวันทำการที่ 1 ถึง 63 หลังจากนั้นถึง fair value ของ method นั้น และรายงาน % hit ต่อ method แยกตาม bucket ของ MoS
 
+#### Scenario: hit rate ของกลุ่ม candidate
+- **WHEN** หุ้นอยู่ในกลุ่ม candidate ณ วันที่ทดสอบ
+- **THEN** นับเป็น hit ถ้าราคาสูงสุดของวันทำการที่ 1 ถึง 63 ถึง fair value ที่ต่ำกว่าของ gate methods (target เดียวกับ batch)
+
 #### Scenario: excess return
-- **WHEN** กลุ่มของ method มีหุ้นที่ MoS ≥ `candidates.min_median_mos` ณ วันที่ทดสอบ
+- **WHEN** กลุ่มของ method มีหุ้นที่ MoS ≥ `candidates.min_gate_mos` ณ วันที่ทดสอบ
 - **THEN** excess return ของวันนั้นคือค่าเฉลี่ยของผลตอบแทนรวมปันผล 63 วันของกลุ่มนั้น ลบค่าเฉลี่ยของหุ้นทุกตัวที่ประเมินได้ในวันเดียวกัน และรายงานค่าเฉลี่ยกับ median ของทุกวันที่ทดสอบ พร้อม % ของวันที่เป็นบวก
 
 #### Scenario: bucket ของ MoS
-- **WHEN** รายงานผลของ method หรือ median MoS
+- **WHEN** รายงานผลของ method, median MoS หรือ MoS gate
 - **THEN** แสดงจำนวน, median ผลตอบแทน 63 วัน และ median excess return ของแต่ละ bucket: MoS < 0, 0–10%, 10–30%, ≥ 30%
 
 #### Scenario: method คำนวณไม่ได้
@@ -124,7 +128,11 @@ backtest SHALL ข้ามหุ้นที่ดึงงบหรือ mark
 
 #### Scenario: median ผิดปกติ
 - **WHEN** median fair value ของหุ้นตัวหนึ่งผิดปกติ
-- **THEN** การประเมินนั้นไม่นับในกลุ่ม median, candidate และ candidate (relative) ของตารางแบบไม่นับค่าผิดปกติ
+- **THEN** การประเมินนั้นไม่นับในกลุ่ม median, candidate (median) และ candidate (relative) ของตารางแบบไม่นับค่าผิดปกติ
+
+#### Scenario: fair value ของ gate ผิดปกติ
+- **WHEN** fair value ที่ต่ำกว่าของ gate methods ของหุ้นตัวหนึ่งผิดปกติ
+- **THEN** การประเมินนั้นไม่นับในกลุ่ม MoS gate และ candidate ของตารางแบบไม่นับค่าผิดปกติ
 
 ### Requirement: วัดผลประกอบที่ 126 และ 252 วันทำการ
 backtest SHALL วัด excess return ของทุกกลุ่มที่ 126 และ 252 วันทำการหลังวันที่ทดสอบด้วยวิธีเดียวกับ 63 วัน (ผลตอบแทนรวมปันผลของกลุ่ม − baseline ของวันเดียวกันที่ระยะเดียวกัน) และ median excess แยกตาม bucket ของ MoS 63 วันทำการ SHALL ยังเป็นตัววัดหลัก hit rate วัดที่ 63 วันเท่านั้น
@@ -142,7 +150,7 @@ backtest SHALL วัด excess return ของทุกกลุ่มที�
 - **THEN** ข้อจำกัดในไฟล์ผลระบุว่าช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน t-stat และช่วงความเชื่อมั่นที่ 126 และ 252 วันจึงดูแน่นอนกว่าจริง
 
 ### Requirement: candidate แบบ relative
-backtest SHALL วัดกลุ่ม candidate (relative) คือหุ้นที่ผ่าน quality gate และ median MoS อยู่ใน 20% บนของหุ้นที่มี median MoS ณ วันที่ทดสอบเดียวกัน ไม่มีเกณฑ์ MoS ขั้นต่ำ ด้วยตัววัด excess และแถวสลับ MoS เดียวกับกลุ่ม candidate เดิม กลุ่มนี้มีใน backtest เท่านั้น ไม่มีผลกับ batch หรือ candidate list
+backtest SHALL วัดกลุ่ม candidate (relative) คือหุ้นที่ผ่าน quality gate และ median MoS อยู่ใน 20% บนของหุ้นที่มี median MoS ณ วันที่ทดสอบเดียวกัน ไม่มีเกณฑ์ MoS ขั้นต่ำ ด้วยตัววัด excess และแถวสลับ MoS เดียวกับกลุ่ม candidate กลุ่มนี้มีใน backtest เท่านั้นเป็นค่าอ้างอิง ไม่มีผลกับ batch หรือ candidate list
 
 #### Scenario: เลือก 20% บน
 - **WHEN** วันที่ทดสอบมีหุ้น 100 ตัวที่มี median MoS
@@ -150,8 +158,19 @@ backtest SHALL วัดกลุ่ม candidate (relative) คือหุ้�
 
 #### Scenario: สัดส่วน candidate ต่อวันที่
 - **WHEN** รายงานผลต่อวันที่ทดสอบ
-- **THEN** ตารางต่อวันที่แสดงจำนวนและสัดส่วนต่อหุ้นที่ประเมินได้ของทั้ง candidate และ candidate (relative)
+- **THEN** ตารางต่อวันที่แสดงจำนวนและสัดส่วนต่อหุ้นที่ประเมินได้ของ candidate, candidate (median) และ candidate (relative)
 
 #### Scenario: batch ไม่เปลี่ยน
-- **WHEN** รัน batch หลัง change นี้
-- **THEN** candidate list ยังใช้ candidate rule เดิม (ผ่าน quality gate และ median MoS ≥ `candidates.min_median_mos`)
+- **WHEN** รัน batch
+- **THEN** candidate list ใช้ gate ด้าน fair value ตาม `candidates.gate_methods` ไม่ใช้กลุ่ม relative
+
+### Requirement: แถวเทียบ candidate rule เดิม
+backtest SHALL วัดกลุ่ม candidate (median) คือหุ้นที่ผ่าน quality gate และ median MoS ≥ `candidates.min_gate_mos` (rule ก่อน change นี้) ด้วยตัววัดเดียวกับกลุ่ม candidate ในทุกตาราง ได้แก่ hit rate, excess, t-stat และช่วงความเชื่อมั่น, แถวสลับ MoS, ตารางแบบไม่นับค่าผิดปกติ และตารางต่อระยะ 63, 126 และ 252 วัน เพื่อดูว่า rule ใหม่ยังดีกว่า rule เดิมนอกช่วงที่ใช้เลือก method กลุ่มนี้มีใน backtest เท่านั้น
+
+#### Scenario: เทียบสอง rule
+- **WHEN** backtest รันจบ
+- **THEN** ตารางผลรวมมีแถว candidate และ candidate (median) ติดกัน พร้อม excess, t-stat และช่วงความเชื่อมั่น 95% ของทั้งสองแถว
+
+#### Scenario: ผลซ้ำกับ rule เดิม
+- **WHEN** รัน backtest หลัง change นี้ด้วย cache และค่าเกณฑ์เดียวกับรอบ 2026-10-15
+- **THEN** ตัวเลขของแถว candidate (median) เท่ากับแถว candidate ของไฟล์ผลรอบนั้น

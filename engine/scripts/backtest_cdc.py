@@ -56,7 +56,9 @@ def episode_starts(flags: pd.Series) -> pd.Series:
 def main() -> None:
     cfg = load_config()
     stocks = ThaifinFinancials(cfg.batch.markets).list_stocks()
-    prices = YahooPrices("3y", cfg.batch.price_chunk_size, cfg.batch.chunk_delay_seconds).fetch_prices(
+    b = cfg.batch
+    prices = YahooPrices("3y", b.price_chunk_size, b.chunk_delay_seconds, threads=b.price_threads,
+                         retry_delay_seconds=b.price_retry_delay_seconds).fetch_prices(
         [s.symbol for s in stocks]
     )
     frames = [daily_states(p, cfg) for p in prices.values()]

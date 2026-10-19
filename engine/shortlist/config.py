@@ -268,6 +268,10 @@ class Batch(Strict):
     price_period: str
     price_chunk_size: int
     chunk_delay_seconds: float
+    # concurrent requests per chunk; yfinance's threads=True means cpu×2 (~20), which Yahoo cuts after the close
+    price_threads: int = Field(gt=0)
+    # wait before the one retry pass over symbols the first pass got no prices for (throttle-price-download D2)
+    price_retry_delay_seconds: float = Field(ge=0)
     stale_run_minutes: int
     # a run stops as failed when the network is down or it runs too long (design D3 of batch-timeouts)
     max_consecutive_network_errors: int = Field(gt=0)

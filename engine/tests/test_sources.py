@@ -415,3 +415,56 @@ def test_preferred_equal_to_base_still_counts_as_used():
     src = PreferredStatements(FakeFinancials([], {"PTT": base}), lambda _: pd.DataFrame({"net_profit": [1.0]}, index=["2026Q2"]))
     src.fetch_quarterly("PTT")
     assert src.overlaid == {"PTT"}
+
+
+# throttle-price-download: thread limit and one retry pass
+
+
+def fake_download(answers: list[set[str]], calls: list[dict]):
+    """Each call to yf.download returns prices for the tickers in the next set of `answers` (the rest are missing)."""
+    def download(tickers, **kw):
+        calls.append({"tickers": list(tickers), **kw})
+        have = [t for t in tickers if t.removesuffix(".BK") in answers[min(len(calls), len(answers)) - 1]]
+        if not have:
+            return pd.DataFrame()
+        idx = pd.bdate_range(end="2026-10-14", periods=3)
+        cols = pd.MultiIndex.from_product([have, ["Open", "High", "Low", "Close", "Volume"]])
+        return pd.DataFrame(1.0, index=idx, columns=cols)
+    return download
+
+
+def throttled(monkeypatch, answers, symbols, **kw):
+    from shortlist.sources import yahoo
+
+    calls, sleeps = [], []
+    monkeypatch.setattr(yahoo.yf, "download", fake_download(answers, calls))
+    monkeypatch.setattr(yahoo.time, "sleep", sleeps.append)
+    src = YahooPrices(chunk_size=100, **kw)
+    return src, src.fetch_prices(symbols), calls, sleeps
+
+
+def test_missing_symbols_are_retried_once_after_a_pause(monkeypatch):
+    syms = [f"S{i}" for i in range(10)]
+    src, out, calls, sleeps = throttled(monkeypatch, [set(syms[:7]), {"S7", "S8"}], syms, retry_delay_seconds=30)
+    assert sorted(out) == sorted(syms[:9])  # S9 stays missing and fails later as no price data
+    assert calls[1]["tickers"] == ["S7.BK", "S8.BK", "S9.BK"]
+    assert sleeps == [30] and src.last_retry == (3, 2)
+
+
+def test_no_retry_when_the_first_pass_gets_everything(monkeypatch):
+    syms = ["A", "B"]
+    src, out, calls, sleeps = throttled(monkeypatch, [{"A", "B"}], syms)
+    assert sorted(out) == syms and len(calls) == 1 and sleeps == [] and src.last_retry is None
+
+
+def test_no_retry_when_the_first_pass_gets_nothing(monkeypatch):
+    src, out, calls, sleeps = throttled(monkeypatch, [set()], ["A", "B"])
+    assert out == {} and len(calls) == 1 and sleeps == [] and src.last_retry is None
+
+
+def test_threads_come_from_config(monkeypatch):
+    from shortlist.config import load_config
+
+    b = load_config().batch
+    _, _, calls, _ = throttled(monkeypatch, [{"A"}], ["A"], threads=b.price_threads)
+    assert calls[0]["threads"] == 4

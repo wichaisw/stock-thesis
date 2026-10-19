@@ -471,3 +471,19 @@ def test_stock_without_statements_has_no_tags(tmp_path):
     run_id = batch.run(conn, FakePrices({"LOW": low}), FakeFinancials(stocks, {}), CFG)
     ev = db.evaluation(conn, run_id, "LOW")
     assert ev["quality"] is None and "earnings_due" not in ev
+
+
+
+def test_batch_logs_the_price_retry(tmp_path):
+    prices, fin = fake_sources()
+    prices.last_retry = (3, 2)
+    lines = []
+    batch.run(db.connect(tmp_path / "t.db"), prices, fin, CFG, lines.append)
+    i = next(i for i, l in enumerate(lines) if l.startswith("ได้ราคา") or " ได้ราคา " in l)
+    assert "ดึงราคาซ้ำ 3 ตัว ได้คืน 2 ตัว" in lines[i + 1]
+
+
+def test_no_retry_line_without_a_retry(tmp_path):
+    lines = []
+    batch.run(db.connect(tmp_path / "t.db"), *fake_sources(), CFG, lines.append)
+    assert not any("ดึงราคาซ้ำ" in l for l in lines)

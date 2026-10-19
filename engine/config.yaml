@@ -111,7 +111,9 @@ batch:
   markets: [SET, mai]
   price_period: 1y
   price_chunk_size: 100
-  chunk_delay_seconds: 1.0
+  chunk_delay_seconds: 3.0
+  price_threads: 4 # request พร้อมกันต่อชุด
+  price_retry_delay_seconds: 30 # พักก่อนดึงซ้ำหุ้นที่ไม่ได้ราคา (ดึงซ้ำรอบเดียว)
   stale_run_minutes: 30
   max_consecutive_network_errors: 5 # หยุด batch เมื่อหุ้น fail ด้วย error ของเครือข่ายติดกันเท่านี้
-  max_run_minutes: 20 # หยุด batch เมื่อใช้เวลารวมเกินนี้ (ปกติ 2–3 นาที)
+  max_run_minutes: 20 # หยุด batch เมื่อใช้เวลารวมเกินนี้ (ปกติราว 5 นาที, วัด 19 ต.ค. 2026)

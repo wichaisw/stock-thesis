@@ -24,15 +24,31 @@ REACHABILITY_URL = "https://query2.finance.yahoo.com"
 
 class YahooPrices:
     def __init__(
-        self, period: str = "1y", chunk_size: int = 100, delay_seconds: float = 1.0, history_period: str = "6y"
+        self, period: str = "1y", chunk_size: int = 100, delay_seconds: float = 3.0, history_period: str = "6y",
+        threads: int = 4, retry_delay_seconds: float = 30,
     ):
         self.period = period
         # 5-year bands need 20 quarters plus 3 more for the first TTM
         self.history_period = history_period
         self.chunk_size = chunk_size
         self.delay_seconds = delay_seconds
+        self.threads = threads
+        self.retry_delay_seconds = retry_delay_seconds
+        self.last_retry: tuple[int, int] | None = None  # (asked, recovered) of the last retry pass, for the batch log
 
     def fetch_prices(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
+        out = self._download(symbols)
+        missing = [s for s in symbols if s not in out]
+        self.last_retry = None
+        # none at all means the network is down, not throttled: retrying would only delay the outage check (D2)
+        if out and missing:
+            time.sleep(self.retry_delay_seconds)
+            got = self._download(missing)
+            out |= got
+            self.last_retry = (len(missing), len(got))
+        return out
+
+    def _download(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
         out: dict[str, pd.DataFrame] = {}
         for i, chunk in enumerate(batched(symbols, self.chunk_size)):
             if i:
@@ -45,7 +61,7 @@ class YahooPrices:
                 group_by="ticker",
                 auto_adjust=False,
                 progress=False,
-                threads=True,
+                threads=self.threads,
             )
             if raw is None or raw.empty:
                 continue

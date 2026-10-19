@@ -87,7 +87,8 @@ def default_sources(cfg: Config) -> tuple[PriceSource, FinancialSource, Investor
 
     b = cfg.batch
     return (
-        YahooPrices(b.price_period, b.price_chunk_size, b.chunk_delay_seconds),
+        YahooPrices(b.price_period, b.price_chunk_size, b.chunk_delay_seconds, threads=b.price_threads,
+                    retry_delay_seconds=b.price_retry_delay_seconds),
         PreferredStatements(ThaifinFinancials(b.markets), fetch_statements),
         SetInvestorFlow(),
     )
@@ -199,6 +200,8 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
             failures[s.symbol] = f"ไม่มีข้อมูลราคา: {down}" if down else "ไม่มีข้อมูลราคา"
         guard.record(s.symbol, down)
     log(f"ได้ราคา {len(prices)} ตัว ({guard.lap()})")
+    if retry := getattr(prices_src, "last_retry", None):
+        log(f"ดึงราคาซ้ำ {retry[0]} ตัว ได้คืน {retry[1]} ตัว")
 
     liquidity = {sym: quality.liquidity(p, cfg.liquidity) for sym, p in prices.items()}
     liquid = [sym for sym, r in liquidity.items() if r["passed"]]

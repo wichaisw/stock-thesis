@@ -130,3 +130,18 @@ def test_flag_defaults_are_not_editable():
 @pytest.mark.parametrize("key,value", [("flags.profit_jump_ratio", 1.0), ("flags.earnings_due_days", 0)])
 def test_flag_limits(key, value):
     assert error_locs({key: value}) == {key}
+
+
+
+def test_price_throttle_defaults_and_limits():
+    b = load_config().batch
+    assert (b.price_threads, b.price_retry_delay_seconds, b.chunk_delay_seconds) == (4, 30, 3.0)
+    assert error_locs({"batch.price_threads": 0}) == {"batch.price_threads"}
+    assert error_locs({"batch.price_retry_delay_seconds": -1}) == {"batch.price_retry_delay_seconds"}
+
+
+def test_config_missing_the_price_throttle_fails():
+    raw = yaml.safe_load(DEFAULT_PATH.read_text(encoding="utf-8"))
+    del raw["batch"]["price_threads"]
+    with pytest.raises(ValidationError):
+        Config.model_validate(raw)

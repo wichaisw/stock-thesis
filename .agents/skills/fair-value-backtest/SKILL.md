@@ -50,6 +50,14 @@ A variant passes only when all of these hold (fixed before the first run, design
 - A variant that wins only one half usually tracks the market regime, not a better rule.
 - A pass is a reason to propose a change, not to edit `engine/config.yaml`. The user decides in a separate OpenSpec change.
 
+## Reading the profit-jump table (`## ป้ายกำไรกระโดด`)
+
+`candidate` split into stocks with and without the profit-jump tag (`flags.profit_jump_ratio`, computed by the same `quality.profit_jump` as the batch), per half. The tag "carries information" (`ป้ายมีข้อมูล: ใช่`) only when tagged candidates have a lower mean excess than untagged ones in both halves, a rule fixed before the first run (design D5 of `add-risk-flags`).
+
+- It is a tag, not a gate: a "ใช่" is a reason to propose a gate change, never to make one.
+- Check `หุ้นเฉลี่ย/วันที่` of the tagged rows. Few tagged stocks per date make that row's CI too wide to read.
+- The backtest tags on thaifin profit only; the batch overlays yfinance on the latest quarters, so live tags can differ.
+
 There are only 22 test dates, and evaluations of one stock on consecutive dates are not independent. A difference of a few percentage points between runs is noise.
 
 ## Stop rules

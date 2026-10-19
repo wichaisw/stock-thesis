@@ -210,6 +210,16 @@ function Gates({ ev }: { ev: Evaluation }) {
           <Tag tone="violet">inflection</Tag> {ev.quality.inflection.reason}
         </p>
       )}
+      {ev.quality?.profit_jump?.flag && (
+        <p className="mt-2">
+          <Tag tone="red">กำไรกระโดด</Tag> {ev.quality.profit_jump.reason}
+        </p>
+      )}
+      {ev.earnings_due?.flag && (
+        <p className="mt-2">
+          <Tag>งบใกล้ออก</Tag> {ev.earnings_due.reason}
+        </p>
+      )}
     </Section>
   );
 }

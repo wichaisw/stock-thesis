@@ -179,3 +179,43 @@ def test_complete_statements_are_unchanged():
     reported, dropped = quality.reported_quarters(df)
     assert dropped is None and reported.equals(df)
     assert check(quality.evaluate(df, "Commerce", CFG.quality), "min_quarters")["reason"] == "มีงบ 13 ไตรมาส"
+
+
+# add-risk-flags: profit jump (TTM vs the 4 quarters before)
+
+RATIO = CFG.flags.profit_jump_ratio
+
+
+def jump(df: pd.DataFrame) -> dict:
+    return quality.profit_jump(quality.reported_quarters(df)[0], RATIO)
+
+
+def test_profit_jump_of_1_6_times_is_flagged_with_both_totals():
+    r = jump(quarters(12, net_profit=[2.5e8] * 4 + [4e8] * 4))  # 1,000M a year before, 1,600M now
+    assert r["flag"]
+    assert "1,600 ลบ." in r["reason"] and "1,000 ลบ." in r["reason"] and "1.6 เท่า" in r["reason"]
+
+
+def test_profit_growth_of_1_2_times_is_not_flagged():
+    assert not jump(quarters(12, net_profit=[2.5e8] * 4 + [3e8] * 4))["flag"]
+
+
+def test_loss_in_the_year_before_is_not_flagged():
+    assert not jump(quarters(12, net_profit=[-5e8] * 4 + [4e8] * 4))["flag"]
+
+
+def test_fewer_than_8_quarters_is_not_flagged():
+    assert not jump(quarters(7, net_profit=[1e8] * 3 + [4e8] * 4))["flag"]
+
+
+def test_eps_only_last_quarter_is_not_counted():
+    # the dropped trailing quarter would make the latest 4 = 2.5e8×3 + nothing; it must not be read
+    df = eps_only_last(quarters(13, net_profit=[2.5e8] * 4 + [4e8] * 5))
+    r = jump(df)
+    assert r["flag"] and "1,600 ลบ." in r["reason"]
+
+
+def test_profit_jump_does_not_change_quality_evaluate():
+    df = quarters(12, net_profit=[2.5e8] * 4 + [4e8] * 4)
+    assert jump(df)["flag"]
+    assert "profit_jump" not in quality.evaluate(df, "Commerce", CFG.quality)

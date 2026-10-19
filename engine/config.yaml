@@ -102,6 +102,11 @@ catalyst:
     Automotive: [ยอดผลิตและขายรถยนต์, ยอดส่งออก]
     Media & Publishing: [งบโฆษณา, เรตติ้ง]
 
+# ป้ายเตือนเท่านั้น ไม่ตัดหุ้นออก ไม่เปลี่ยนลำดับ ไม่เกี่ยวกับ gate (change add-risk-flags)
+flags:
+  profit_jump_ratio: 1.5 # เท่า
+  earnings_due_days: 14 # วัน
+
 batch:
   markets: [SET, mai]
   price_period: 1y

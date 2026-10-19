@@ -136,3 +136,19 @@ def inflection(reported: pd.DataFrame) -> dict:
     if len(npm) == 3 and npm[0] < npm[1] < npm[2]:
         return {"flag": True, "reason": f"net margin เพิ่มขึ้น 2 ไตรมาสติด ({npm[0]:.1%} → {npm[1]:.1%} → {npm[2]:.1%})"}
     return {"flag": False, "reason": None}
+
+
+def profit_jump(reported: pd.DataFrame, ratio: float) -> dict:
+    """Net profit of the last 4 reported quarters ≥ ratio × the 4 before (add-risk-flags D2). A tag only: a
+    one-off gain lifts ROE TTM and lowers PE TTM, so it can pass both gate methods at once."""
+    profit = reported["net_profit"].tail(8)
+    if len(profit) < 8 or profit.isna().any():
+        return {"flag": False, "reason": None}
+    before, now = float(profit.iloc[:4].sum()), float(profit.iloc[4:].sum())
+    if before <= 0 or now <= 0 or now < ratio * before:
+        return {"flag": False, "reason": None}
+    return {
+        "flag": True,
+        "reason": f"กำไรสุทธิ 4 ไตรมาสล่าสุด {now / 1e6:,.0f} ลบ. เทียบ {before / 1e6:,.0f} ลบ. ของ 4 ไตรมาสก่อนหน้า "
+        f"({now / before:.1f} เท่า) อาจมีกำไรครั้งเดียว",
+    }

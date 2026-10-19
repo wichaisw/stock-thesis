@@ -75,6 +75,7 @@ LIMITATIONS = [
     "ใช้งบ thaifin อย่างเดียว ไม่ใช้งบ yfinance ที่ batch ใช้ปัจจุบัน ผลจึงอาจต่างจาก batch จริงในไตรมาสล่าสุด",
     "การประเมินของหุ้นตัวเดียวกันในวันที่ติดกันไม่เป็นอิสระต่อกัน จำนวนการประเมินจึงดูมากกว่าข้อมูลที่เป็นอิสระจริง",
     "จำนวนหุ้นจาก yfinance เริ่ม พ.ย. 2018 วันที่ทดสอบช่วงต้นมีจุดใน band น้อยกว่า 20 (ดูจำนวนที่คำนวณได้ต่อวันที่)",
+    "ป้ายกำไรกระโดดใน backtest คิดจากกำไรของ thaifin ซึ่งรวมส่วนของผู้ถือหุ้นส่วนน้อยในบางหุ้น (PTT FY2022–23) batch ใช้ yfinance ทับไตรมาสล่าสุด ป้ายย้อนหลังจึงต่างจาก batch ได้",
     "ตัดหุ้นที่ split, ปันผลเป็นหุ้น หรือ merge ออกทั้งตัว ผลจึงเป็นของหุ้นที่เหลือเท่านั้น",
     "ไม่จำลองการเทรด ไม่มีค่าธรรมเนียม slippage stop หรือ CDC",
     "ที่ 126 และ 252 วัน ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน excess ต่อวันที่จึงไม่เป็นอิสระ t และช่วงความเชื่อมั่นดูแน่นอนกว่าจริง",
@@ -188,6 +189,8 @@ def evaluate_date(
         min_mos = cfg.candidates.min_gate_mos
         candidate = passed and gate["mos"] is not None and gate["mos"] >= min_mos
         gate_mos = [i["mos"] for i in gate["items"] if i["mos"] is not None]
+        # the same function the batch tags with (add-risk-flags D5)
+        jump = quality.profit_jump(quality.reported_quarters(s.quarterly)[0], cfg.flags.profit_jump_ratio)["flag"]
         variants = {
             v.flag: (quality.evaluate(s.quarterly, s.info.sector, cfg.quality.model_copy(update=v.quality))["passed"]
                      if v.quality else passed) and (v.rule or at_least(min_mos))(gate_mos)
@@ -201,7 +204,7 @@ def evaluate_date(
             rows.append({
                 "date": t, "symbol": sym, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
                 "quality_passed": passed, "candidate": candidate, "candidate_median": candidate_median,
-                "abnormal": abnormal(value, mos, price[sym]), **variants,
+                "abnormal": abnormal(value, mos, price[sym]), "profit_jump": jump, **variants,
             })
     top = top_share({r["symbol"]: r["mos"] for r in rows if r["method"] == MEDIAN})
     for r in rows:
@@ -380,6 +383,26 @@ def variants(done: pd.DataFrame, baseline: pd.Series, min_mos: float) -> dict[st
     return {"periods": by_period, "verdict": pd.DataFrame(verdict_rows)}
 
 
+def profit_jump_table(done: pd.DataFrame, baseline: pd.Series, min_mos: float) -> pd.DataFrame:
+    """`candidate` split by the profit-jump tag, per half (add-risk-flags D5). The tag carries information when
+    tagged candidates beat untagged ones in neither half: the rule is fixed before the run."""
+    out = []
+    for label, part in periods(done):
+        g = groups(part, min_mos)[CANDIDATE]
+        for tagged in (True, False):
+            sub = g.assign(selected=g["selected"] & (g["profit_jump"] == tagged))
+            n = picks(sub)
+            out.append({"tagged": tagged, "period": label, **excess(sub, baseline, spread=True),
+                        "mean_count": float(n.mean()) if len(n) else None})
+    table = pd.DataFrame(out)
+    if table.empty:
+        return table.assign(informative=[])
+    means = table.set_index(["period", "tagged"])["mean"].astype(float)
+    # NaN compares False, so a half where either group has no excess is not evidence
+    informative = all(means[(label, True)] < means[(label, False)] for label in table["period"].unique())
+    return table.assign(informative=informative)
+
+
 def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.DataFrame]:
     """`rows` from evaluate_date + with_outcomes. Evaluations whose horizon has not passed are not counted.
     `clean` drops abnormal evaluations from the groups but keeps every stock in the baseline (design D3)."""
@@ -419,6 +442,7 @@ def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.D
         "buckets": pd.DataFrame(buckets),
         "baseline": baseline,
         **variants(done, baseline, min_mos),
+        "profit_jump": profit_jump_table(done, baseline, min_mos),
     }
 
 
@@ -604,6 +628,15 @@ def report(
                  "–" if r.mean_candidates is None else f"{r.mean_candidates:.1f}", _rate(r.dates_with),
                  "ผ่าน" if r.passed else "ไม่ผ่าน", r.why or "–"]
                 for r in result["verdict"].itertuples()]),
+        "## ป้ายกำไรกระโดด",
+        f"candidate แยกตามป้ายกำไรกระโดด (กำไรสุทธิ 4 ไตรมาสล่าสุด ≥ {cfg.flags.profit_jump_ratio:g} เท่าของ 4 ไตรมาสก่อนหน้า) "
+        "เกณฑ์ที่ตั้งไว้ก่อนรัน: ป้ายมีข้อมูลเมื่อกลุ่มที่ติดป้ายมี excess ต่ำกว่ากลุ่มที่ไม่ติดทั้งสองช่วง ผลนี้ไม่เปลี่ยน gate "
+        f"วัดเฉพาะหุ้นที่ liquidity ≥ {cfg.liquidity.min_avg_traded_value / 1e6:,.0f} ลบ./วัน และงบ ≥ {cfg.quality.min_quarters} ไตรมาส "
+        "ใช้กำไรของ thaifin อย่างเดียว",
+        _table(["ป้าย", "ช่วง", "วันที่", "excess เฉลี่ย", "95% CI", "t", "หุ้นเฉลี่ย/วันที่"],
+               [["ติดป้าย" if r.tagged else "ไม่ติดป้าย", r.period, r.dates, _pct(r.mean), _ci(r.ci_low, r.ci_high), _t(r.t),
+                 "–" if r.mean_count is None else f"{r.mean_count:.1f}"] for r in result["profit_jump"].itertuples()]),
+        "ป้ายมีข้อมูล: " + ("ใช่" if len(result["profit_jump"]) and result["profit_jump"]["informative"].iloc[0] else "ไม่ใช่"),
         f"## หุ้นที่ตัด ({len(excluded)} ตัว, {share:.0%})",
         ", ".join(f"{k} {v} ตัว" for k, v in by_reason.items()),
         _table(["หุ้น", "เหตุผล"], [[k, v] for k, v in sorted(excluded.items())]) if excluded else "ไม่มี",

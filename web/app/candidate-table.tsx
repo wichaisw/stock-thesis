@@ -86,6 +86,12 @@ export function CandidateTable({ candidates, linkSymbols }: { candidates: Evalua
                   {c.fair_value?.history_gap?.flag && (
                     <Tag title={c.fair_value?.history_gap?.reason ?? undefined}>ข้อมูลย้อนหลังไม่ครบ</Tag>
                   )}
+                  {c.quality?.profit_jump?.flag && (
+                    <Tag tone="red" title={c.quality.profit_jump.reason ?? undefined}>
+                      กำไรกระโดด
+                    </Tag>
+                  )}
+                  {c.earnings_due?.flag && <Tag title={c.earnings_due.reason ?? undefined}>งบใกล้ออก</Tag>}
                 </td>
               </tr>
             );

@@ -119,3 +119,14 @@ def test_disabling_every_gate_method_is_rejected():
     others = ["pe_median", "pe_minus_1sd", "pbv_median", "dividend_yield_median"]
     assert error_locs({"fair_value.enabled": others}) == {""}  # model-level; the API maps it to fair_value.enabled
     load_config(overrides={"fair_value.enabled": [*others, "peer_pe"]})  # one gate method left is fine
+
+
+def test_flag_defaults_are_not_editable():
+    f = load_config().flags
+    assert (f.profit_jump_ratio, f.earnings_due_days) == (1.5, 14)
+    assert not [s for s, _, _ in editable_fields() if s == "flags"]
+
+
+@pytest.mark.parametrize("key,value", [("flags.profit_jump_ratio", 1.0), ("flags.earnings_due_days", 0)])
+def test_flag_limits(key, value):
+    assert error_locs({key: value}) == {key}

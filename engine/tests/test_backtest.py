@@ -226,7 +226,7 @@ def frame(rows: list[tuple], **extra) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=cols)
     df["date"] = pd.to_datetime(df["date"])
     defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False,
-                "candidate_median": False} | {v.flag: False for v in bt.VARIANTS}
+                "candidate_median": False, "profit_jump": False} | {v.flag: False for v in bt.VARIANTS}
     for col, value in (defaults | extra).items():
         df[col] = value
     return df
@@ -448,7 +448,7 @@ def test_report_has_every_section():
                  "| 95% CI | t |", "## ผลรวมแบบไม่นับค่าผิดปกติ", "## ต่อระยะวัดผล", "median excess 252 วัน",
                  "| candidate % | candidate (median) | candidate (median) % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
                  "90 ช่วงความเชื่อมั่น", "## variant ของ candidate rule", "ไม่ใช่ out-of-sample", "| ผ่านเกณฑ์ | เหตุผล |",
-                 "| candidate Option A |", "| candidate quality ผ่านทุกข้อ + D/E ≤ 2.0 |"]:
+                 "| candidate Option A |", "| candidate quality ผ่านทุกข้อ + D/E ≤ 2.0 |", "## ป้ายกำไรกระโดด", "ป้ายมีข้อมูล:"]:
         assert part in md, part
     for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.GATE, bt.CANDIDATE, bt.CANDIDATE_MEDIAN, bt.RELATIVE]:
         assert f"| {method} |" in md, method
@@ -513,3 +513,41 @@ def test_candidate_periods_cover_the_summary_dates():
     cand = result["periods"][result["periods"]["group"] == bt.CANDIDATE]
     assert cand["period"].tolist() == ["2022Q1–2023Q4", "2024Q1–2025Q4"]
     assert cand["dates"].sum() == result["summary"].set_index("group").loc[bt.CANDIDATE, "excess_dates"]
+
+
+# add-risk-flags: profit-jump tag
+
+
+def jump_rows(tagged_ret: float, late_tagged_ret: float, skip_date: int | None = None) -> pd.DataFrame:
+    """variant_rows with stocks 0–4 as candidate; stock 0 tagged (except on skip_date), with its own return."""
+    df = variant_rows(lambda d, i: False)
+    dates = sorted(df["date"].unique())
+    tagged = (df["symbol"] == "S0") & (df["date"] != (dates[skip_date] if skip_date is not None else None))
+    df["profit_jump"] = tagged
+    df.loc[tagged, "ret"] = [tagged_ret if d < bt.SPLIT else late_tagged_ret for d in df.loc[tagged, "date"]]
+    return df
+
+
+def test_tag_is_informative_when_tagged_candidates_lose_in_both_halves():
+    t = bt.metrics(jump_rows(-0.05, -0.05), 0.10)["profit_jump"]
+    assert t["informative"].all()
+    assert set(t["period"]) == {"2022Q1–2023Q4", "2024Q1–2025Q4"}
+
+
+def test_tag_is_not_informative_when_tagged_win_one_half():
+    assert not bt.metrics(jump_rows(-0.05, 0.30), 0.10)["profit_jump"]["informative"].any()
+
+
+def test_date_without_a_tagged_candidate_is_skipped_only_for_the_tagged_group():
+    t = bt.metrics(jump_rows(-0.05, -0.05, skip_date=0), 0.10)["profit_jump"].set_index(["period", "tagged"])
+    assert t.loc[("2022Q1–2023Q4", True), "dates"] == 7
+    assert t.loc[("2022Q1–2023Q4", False), "dates"] == 8
+
+
+def test_backtest_and_batch_read_the_same_profit_jump():
+    q = quarters(net_profit=1e9)
+    q.loc["2022Q1":, "net_profit"] = 1.6e9  # the 4 quarters known at T (2022Q1–2022Q4) vs 2021
+    rows, _ = bt.evaluate_date({"AAA": stock(q=q)}, T, CFG)
+    known = bt.cut(stock(q=q), T, CFG.catalyst).quarterly
+    expected = bt.quality.profit_jump(bt.quality.reported_quarters(known)[0], CFG.flags.profit_jump_ratio)["flag"]
+    assert expected and all(r["profit_jump"] for r in rows)

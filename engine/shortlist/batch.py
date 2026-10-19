@@ -1,5 +1,6 @@
 import sqlite3
 import time
+from datetime import date
 from collections.abc import Callable
 
 import pandas as pd
@@ -255,6 +256,14 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
     price_date = max((e["price_date"] for e in evaluations), default=None)
     for ev in evaluations:
         ev["stale_price"] = ev["price_date"] < price_date
+        # tags set after ranking, so they cannot change the list or its order (add-risk-flags)
+        if (q := quarterly.get(ev["symbol"])) is not None:
+            reported = quality.reported_quarters(q)[0]
+            ev["earnings_due"] = (
+                catalyst.earnings_due(str(reported.index[-1]), date.fromisoformat(price_date), cfg.flags.earnings_due_days,
+                                      cfg.catalyst)
+                if len(reported) else {"flag": False, "reason": None}
+            )
     log(
         f"candidates {sum(e['candidate_rank'] is not None for e in evaluations)} ตัว, fail {len(failures)} ตัว, "
         f"ราคาไม่อัปเดต {sum(e['stale_price'] for e in evaluations)} ตัว (ประเมิน {guard.lap()}, รวม {guard.total()})"
@@ -303,6 +312,7 @@ def evaluate_stock(
         # the run's threshold travels with the gate, like liquidity.threshold, so the detail page shows what was applied
         fv["gate"] = fair_value.gate(fv["items"], cfg.candidates.gate_methods) | {"min_mos": cfg.candidates.min_gate_mos}
         ev["quality"] = quality.evaluate(quarterly, info.sector, cfg.quality)
+        ev["quality"]["profit_jump"] = quality.profit_jump(quality.reported_quarters(quarterly)[0], cfg.flags.profit_jump_ratio)
         ev["fair_value"] = fv
         ev["risk_reward"] = risk_reward.evaluate(prices, cdc_result.get("slow"), fv, cfg.risk_reward)
     ev["inclusion"] = candidates.inclusion(ev, cfg.candidates)

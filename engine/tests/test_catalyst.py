@@ -1,5 +1,7 @@
 from datetime import date
 
+import pytest
+
 from shortlist.config import load_config
 from shortlist.core import catalyst
 
@@ -48,3 +50,25 @@ def test_manual_events_inside_horizon_only():
 
 def test_add_months_clamps_day():
     assert catalyst.add_months(date(2026, 8, 31), 6) == date(2027, 2, 28)
+
+
+# add-risk-flags: earnings due soon
+
+
+@pytest.mark.parametrize("latest,price_date,flag", [
+    ("2026Q2", date(2026, 11, 5), True),    # 2026Q3 due ~14 Nov
+    ("2026Q3", date(2026, 11, 5), False),   # filed early
+    ("2026Q2", date(2026, 10, 15), False),  # 30 days away
+    ("2026Q2", date(2026, 11, 20), False),  # deadline passed
+])
+def test_earnings_due(latest, price_date, flag):
+    r = catalyst.earnings_due(latest, price_date, 14, CFG)
+    assert r["flag"] is flag
+    if flag:
+        assert (r["quarter"], r["date"]) == ("2026Q3", "2026-11-14")
+        assert "2026Q3" in r["reason"] and "14/11/2026" in r["reason"] and "ประมาณ" in r["reason"]
+
+
+def test_annual_statement_uses_the_longer_deadline():
+    r = catalyst.earnings_due("2026Q3", date(2027, 2, 20), 14, CFG)
+    assert (r["flag"], r["date"]) == (True, "2027-03-01")

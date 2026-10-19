@@ -2,6 +2,7 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import pytest
 
 from shortlist import batch, db
@@ -427,3 +428,46 @@ def test_fair_value_settings_do_not_change_cdc():
     b = evaluate_with(CFG.model_copy(update={"fair_value": CFG.fair_value.model_copy(update={"cost_of_equity": 0.15})}))
     assert a["fair_value"] != b["fair_value"]
     assert a["cdc"] == b["cdc"]
+
+
+# add-risk-flags: tags in the batch
+
+
+def tagged_run(tmp_path, price_end: str = "2026-11-05"):
+    """AAA's latest quarter is 2026Q2 (2026Q3 due ~14 Nov) and its profit jumped 1.6×."""
+    p = price_history()
+    p.index = pd.bdate_range(end=price_end, periods=len(p))
+    q = healthy_quarters()
+    q.iloc[-4:, q.columns.get_loc("net_profit")] = 1.6e9  # the 4 before stay at 1e9: a 1.6× jump
+    stocks = [StockInfo("AAA", "AAA Co", "Commerce", "SET")]
+    fin = FakeFinancials(stocks, {"AAA": q})
+    conn = db.connect(tmp_path / "t.db")
+    run_id = batch.run(conn, FakePrices({"AAA": p}, {"AAA": market_caps(q)}), fin, CFG)
+    return db.evaluation(conn, run_id, "AAA")
+
+
+def test_batch_sets_both_tags(tmp_path):
+    ev = tagged_run(tmp_path)
+    assert ev["earnings_due"]["flag"] and ev["earnings_due"]["date"] == "2026-11-14"
+    assert ev["quality"]["profit_jump"]["flag"] and "1.6 เท่า" in ev["quality"]["profit_jump"]["reason"]
+
+
+def test_earnings_due_reads_the_run_price_date(tmp_path):
+    assert not tagged_run(tmp_path, price_end="2026-10-15")["earnings_due"]["flag"]
+
+
+def test_tags_do_not_change_inclusion_or_order():
+    ev = evaluate_with(CFG)
+    tagged = ev | {"earnings_due": {"flag": True},
+                   "quality": ev["quality"] | {"profit_jump": {"flag": True}}}
+    assert candidates.inclusion(tagged, CFG.candidates) == candidates.inclusion(ev, CFG.candidates)
+    assert candidates.sort_key(tagged) == candidates.sort_key(ev)
+
+
+def test_stock_without_statements_has_no_tags(tmp_path):
+    low = price_history().assign(volume=10.0)  # below the liquidity filter: statements are never fetched
+    stocks = [StockInfo("LOW", "LOW Co", "Commerce", "SET")]
+    conn = db.connect(tmp_path / "t.db")
+    run_id = batch.run(conn, FakePrices({"LOW": low}), FakeFinancials(stocks, {}), CFG)
+    ev = db.evaluation(conn, run_id, "LOW")
+    assert ev["quality"] is None and "earnings_due" not in ev

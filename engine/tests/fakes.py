@@ -17,7 +17,7 @@ def price_history(days: int = 120, start: float = 10.0, end: float = 12.0) -> pd
 def healthy_quarters(n: int = 16) -> pd.DataFrame:
     values = {"eps": 1.0, "net_profit": 1e9, "net_profit_yoy": 0.05, "equity": 1e9 * 4 / 0.14, "de": 0.8, "ocf": 5e8,
               "npm": 0.10, "bvps": 10.0, "dividend_yield": 0.04, "close": 15.0}
-    return pd.DataFrame({c: [values[c]] * n for c in QUARTERLY_COLUMNS}, index=[f"q{i}" for i in range(n)])
+    return pd.DataFrame({c: [values[c]] * n for c in QUARTERLY_COLUMNS}, index=[str(q) for q in pd.period_range(end="2026Q2", periods=n, freq="Q")])
 
 
 def market_caps(quarterly: pd.DataFrame, shares: float = 1e9) -> pd.DataFrame:

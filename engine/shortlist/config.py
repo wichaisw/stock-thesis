@@ -274,6 +274,15 @@ class Batch(Strict):
     max_run_minutes: float = Field(gt=0)
 
 
+class Flags(Strict):
+    """Warning tags only: none of these removes a stock, changes the order or touches a gate (add-risk-flags D1).
+    Not editable: there is no evidence yet for tuning them."""
+    # กำไรสุทธิ TTM ≥ ค่านี้ × TTM ของ 4 ไตรมาสก่อนหน้า → ป้ายกำไรกระโดด
+    profit_jump_ratio: float = Field(gt=1)
+    # กำหนดส่งงบไตรมาสถัดไปอยู่ภายในจำนวนวันนี้นับจากวันที่ราคา → ป้ายงบใกล้ออก
+    earnings_due_days: int = Field(gt=0)
+
+
 class Config(Strict):
     liquidity: Liquidity
     quality: Quality
@@ -283,6 +292,7 @@ class Config(Strict):
     candidates: Candidates
     catalyst: Catalyst
     batch: Batch
+    flags: Flags
 
     @model_validator(mode="after")
     def _a_gate_method_stays_enabled(self) -> "Config":

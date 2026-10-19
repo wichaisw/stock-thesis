@@ -92,7 +92,15 @@ export type Evaluation = {
   stale_price?: boolean;
   candidate_rank: number | null;
   liquidity: { passed: boolean; value: number; threshold: number; reason: string };
-  quality: { passed: boolean; checks: Check[]; inflection: { flag: boolean; reason: string | null } } | null;
+  quality: {
+    passed: boolean;
+    checks: Check[];
+    inflection: { flag: boolean; reason: string | null };
+    // absent in runs saved before add-risk-flags
+    profit_jump?: { flag: boolean; reason: string | null };
+  } | null;
+  // absent before add-risk-flags, and for stocks whose statements were not fetched
+  earnings_due?: { flag: boolean; reason: string | null; quarter?: string; date?: string };
   fair_value: {
     price: number;
     eps_ttm: number | null;

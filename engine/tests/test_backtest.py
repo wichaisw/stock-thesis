@@ -155,6 +155,58 @@ def test_candidate_reads_the_gate_row():
     assert by[bt.GATE]["candidate"] == (by[bt.GATE]["mos"] >= CFG.candidates.min_gate_mos)
 
 
+# validate-gate-variants: variant rules (MoS of the computable gate methods)
+
+
+def test_option_a_passes_with_one_method_slightly_negative():
+    assert bt.option_a([0.20, -0.05]) and not bt.at_least(0.10)([0.20, -0.05])
+
+
+def test_option_a_with_one_method_needs_12_percent():
+    assert not bt.option_a([0.11]) and bt.at_least(0.10)([0.11])
+    assert bt.option_a([0.12])
+
+
+def test_option_b_needs_both_methods():
+    assert not bt.option_b([0.30])
+
+
+def test_option_b_rejects_a_method_far_below_zero_even_if_the_mean_passes():
+    assert not bt.option_b([0.40, -0.20])
+    assert bt.option_b([0.20, -0.04])
+
+
+def test_no_computable_gate_method_passes_no_rule():
+    assert not any(rule([]) for rule in (bt.at_least(0.10), bt.option_a, bt.option_b))
+
+
+def gate_row(q: pd.DataFrame) -> dict:
+    rows, _ = bt.evaluate_date({"AAA": stock(q=q)}, T, CFG)
+    return next(r for r in rows if r["method"] == bt.GATE)
+
+
+def test_all_pass_variant_drops_a_stock_failing_one_check():
+    q = quarters()
+    q.loc["2022Q4", "ocf"] = -1e8
+    q.loc["2022Q3", "ocf"] = -1e8  # 2 of the last 4 known at T are negative: OCF fails, the other checks pass
+    r = gate_row(q)
+    assert r["quality_passed"] and r["candidate"]
+    assert not r["v_all_pass"] and not r["v_all_pass_de2"]
+
+
+def test_de_2_variant_keeps_de_1_8():
+    r = gate_row(quarters(de=1.8))
+    assert r["candidate"] and r["v_all_pass_de2"] and not r["v_all_pass"]
+
+
+def test_variants_are_scored_like_candidate():
+    df = known_rows()
+    df["v_mos15"] = df["candidate"]
+    s = bt.metrics(df, 0.10)["summary"].set_index("group")
+    cols = ["excess_mean", "excess_dates", "hit_rate", "hit_n", "excess_t"]
+    assert s.loc["candidate MoS ≥ 15%", cols].tolist() == s.loc[bt.CANDIDATE, cols].tolist()
+
+
 # 1.4 metrics
 
 
@@ -174,7 +226,7 @@ def frame(rows: list[tuple], **extra) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=cols)
     df["date"] = pd.to_datetime(df["date"])
     defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False,
-                "candidate_median": False}
+                "candidate_median": False} | {v.flag: False for v in bt.VARIANTS}
     for col, value in (defaults | extra).items():
         df[col] = value
     return df
@@ -395,8 +447,69 @@ def test_report_has_every_section():
                  "survivorship bias", "restate", "thaifin อย่างเดียว", "ไม่เป็นอิสระ",
                  "| 95% CI | t |", "## ผลรวมแบบไม่นับค่าผิดปกติ", "## ต่อระยะวัดผล", "median excess 252 วัน",
                  "| candidate % | candidate (median) | candidate (median) % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
-                 "48 ช่วงความเชื่อมั่น"]:
+                 "90 ช่วงความเชื่อมั่น", "## variant ของ candidate rule", "ไม่ใช่ out-of-sample", "| ผ่านเกณฑ์ | เหตุผล |",
+                 "| candidate Option A |", "| candidate quality ผ่านทุกข้อ + D/E ≤ 2.0 |"]:
         assert part in md, part
     for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.GATE, bt.CANDIDATE, bt.CANDIDATE_MEDIAN, bt.RELATIVE]:
         assert f"| {method} |" in md, method
     assert md.count("| candidate (relative) (สลับ MoS) |") == 2  # summary and clean
+
+
+# validate-gate-variants: variant table and verdict
+
+
+def variant_rows(pick) -> pd.DataFrame:
+    """16 dates (8 before 2024, 8 from 2024), 10 stocks; stock i returns 0.10 − 0.01·i. candidate = stocks 0–4,
+    the MoS ≥ 15% variant = pick(date index, stock index)."""
+    dates = list(pd.date_range("2022-03-31", periods=8, freq="QE")) + list(pd.date_range("2024-03-31", periods=8, freq="QE"))
+    rows, flags = [], []
+    for d_i, d in enumerate(dates):
+        for i in range(10):
+            ret = 0.10 - 0.01 * i + 0.001 * (d_i % 3)
+            for m in (bt.MEDIAN, bt.GATE):
+                rows.append((d, f"S{i}", m, 0.2, 10.0, ret, 10.0, i < 5))
+                flags.append(bool(pick(d_i, i)))
+    df = frame(rows)
+    df["v_mos15"] = flags
+    return df
+
+
+def verdict(df: pd.DataFrame) -> pd.Series:
+    return bt.metrics(df, 0.10)["verdict"].set_index("group").loc["candidate MoS ≥ 15%"]
+
+
+def test_variant_that_beats_candidate_everywhere_passes():
+    v = verdict(variant_rows(lambda d, i: i < 4))
+    assert v["passed"] and v["why"] == ""
+    assert v["diff_mean"] == pytest.approx(0.005)
+
+
+def test_variant_winning_one_half_fails():
+    v = verdict(variant_rows(lambda d, i: i < 4 if d < 8 else i >= 6))
+    assert not v["passed"] and "ไม่ชนะ candidate ทุกช่วง" in v["why"]
+
+
+def test_variant_whose_ci_crosses_zero_fails():
+    v = verdict(variant_rows(lambda d, i: i < 4 if d % 2 else i >= 6))
+    assert not v["passed"] and "95% CI คร่อม 0" in v["why"]
+
+
+def test_variant_with_too_few_candidates_fails_even_when_it_wins():
+    v = verdict(variant_rows(lambda d, i: i == 0))
+    assert not v["passed"] and v["why"] == "candidate น้อยเกินไป"
+    assert v["mean_candidates"] == 1.0
+
+
+def test_date_without_variant_candidate_is_not_scored():
+    df = variant_rows(lambda d, i: i < 4 and d != 3)
+    result = bt.metrics(df, 0.10)
+    first = result["periods"].set_index(["group", "period"]).loc[("candidate MoS ≥ 15%", "2022Q1–2023Q4")]
+    assert (first["dates"], first["dates_without"]) == (7, 1)
+    assert result["verdict"].set_index("group").loc["candidate MoS ≥ 15%", "diff_dates"] == 15
+
+
+def test_candidate_periods_cover_the_summary_dates():
+    result = bt.metrics(variant_rows(lambda d, i: i < 4), 0.10)
+    cand = result["periods"][result["periods"]["group"] == bt.CANDIDATE]
+    assert cand["period"].tolist() == ["2022Q1–2023Q4", "2024Q1–2025Q4"]
+    assert cand["dates"].sum() == result["summary"].set_index("group").loc[bt.CANDIDATE, "excess_dates"]

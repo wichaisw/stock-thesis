@@ -34,10 +34,21 @@ Runs `fair_value.evaluate` and `quality.evaluate` as of each quarter end, using 
 | candidate (median) | The old rule, kept for comparison: passed quality and median MoS ≥ `min_gate_mos` | If it beats `candidate` (or `candidate`'s CI crosses 0), tell the user: the gate rule needs a review (its two methods were picked in-sample) |
 | 95% CI, t | Range of the mean excess from resampling the test dates 2,000 times, and mean ÷ standard error across dates | CI above 0 (or t above ~2). With about 48 CIs in one file, about 2 clear 0 by chance: one alone is a hypothesis, not proof |
 | candidate (relative) | Passed quality and median MoS in the top 20% of that date's evaluated stocks, no MoS floor. Backtest only | Beats `candidate` on the 63-day row and in the clean table, with a placebo near 0. The per-date `candidate %` column shows how far the absolute gate drifts |
+| candidate MoS ≥ 15/20/25%, Option A, Option B, quality ผ่านทุกข้อ (+ D/E ≤ 2.0) | Backtest-only variants of `candidate` (`VARIANTS` in `backtest.py`), each changing one thing. Option A: one gate method ≥ 15% and the other ≥ −10%, a single computable one ≥ 12%. Option B: both computable, mean ≥ 8%, none < −15%. Hit is measured against the gate's fair value, as for `candidate` | Read them in the variant table, not here. Option A/B hit rates look high because the gate's fair value can be below the price |
 | ผลรวมแบบไม่นับค่าผิดปกติ | The summary again with abnormal evaluations dropped from each group, same baseline | A group that wins only in the main table is winning on bad data |
 | ต่อระยะวัดผล | Excess, CI and t at 63, 126 and 252 trading days; the bucket table adds median excess at 126 and 252 | 63 days decides (the thesis). Longer windows overlap, so their t looks better than it is. High-MoS buckets turning positive only at 252 means slow, not wrong |
 | คำนวณไม่ได้ | The method gave no fair value | Early dates have fewer band points, since share counts start in Nov 2018 |
 | ค่าประเมินผิดปกติ | MoS < −100% or fair value > 5× price. Still counted in every metric | The same bugs `stock-sanity-check` hunts for |
+
+## Reading the variant table (`## variant ของ candidate rule`)
+
+The first table splits `candidate` and every variant into 2021Q1–2023Q4 and 2024Q1 onwards. The second gives each variant's paired difference (per-date excess of the variant − `candidate`, on dates both have picks) and the verdict.
+
+A variant passes only when all of these hold (fixed before the first run, design D4 of `validate-gate-variants`): its mean 63-day excess beats `candidate` in both halves, the lower end of its full-period 95% CI is above 0, and it averages at least 3 candidates per date with picks on at least 80% of dates. The paired difference is shown alongside but is not part of the rule.
+
+- The split is a stability check, **not out-of-sample**. The gate methods and the 10% threshold were chosen on both halves. Only `candidate_history` (from 15 Oct 2026) is truly unseen data.
+- A variant that wins only one half usually tracks the market regime, not a better rule.
+- A pass is a reason to propose a change, not to edit `engine/config.yaml`. The user decides in a separate OpenSpec change.
 
 There are only 22 test dates, and evaluations of one stock on consecutive dates are not independent. A difference of a few percentage points between runs is noise.
 
@@ -45,4 +56,5 @@ There are only 22 test dates, and evaluations of one stock on consecutive dates 
 
 - A failed poison check means fix the bug first. Never skip it or loosen it.
 - A result is never a reason to change a formula or threshold on your own. Report it and ask the user. A change prompted by a backtest is its own OpenSpec change.
+- Never add, drop or retune a variant, or change the adoption rule, after seeing a result. That is choosing on the test data. It needs its own change, and the next run is the test.
 - Results are committed (`docs/backtests/`). The cache is not (`engine/.cache/`).

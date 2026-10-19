@@ -162,6 +162,27 @@ candidate (relative) (ผ่าน quality, median MoS 20% บน): +1.2% (−0.
 ที่ 252 วัน (19 วันที่ ช่วงวัดผลซ้อนกัน t ดูดีเกินจริง): peer_pe +4.8% (t 5.44), justified_pbv +5.4% (t 5.19), candidate (relative) +4.1% (t 2.38), candidate +2.3% (t 1.98) bucket MoS ≥ 30% ของ median ยังติดลบที่ 252 วัน (−0.9%) MoS ที่สูงมากจึงไม่ใช่แค่ใช้เวลานาน ส่วน justified_pbv bucket 0–10% ให้ excess สูงสุด (+7.7% ที่ 252 วัน)
 ยังไม่เปลี่ยน gate หรือ method จากผลนี้ (stop rules ของ skill)
 
+### Variant ของ candidate rule (change `validate-gate-variants` task 2.3, 19 ต.ค. 2026)
+
+cache และ `config.yaml` เดิม (cache 15 ต.ค.) ทุกแถวของกลุ่มเดิมเท่ากับไฟล์ 2026-10-15 poison check ผ่าน ผลเต็ม: [docs/backtests/fair-value-2026-10-19.md](../docs/backtests/fair-value-2026-10-19.md)
+เกณฑ์ที่ตั้งไว้ก่อนรัน: ชนะ candidate ทั้งสองช่วง, ขอบล่าง 95% CI ทั้งช่วง > 0, candidate เฉลี่ย ≥ 3 ตัวต่อวันที่ และมี candidate ≥ 80% ของวันที่ **ไม่มี variant ไหนผ่าน**
+
+| กลุ่ม | excess 2021–23 | excess 2024–26Q2 | ทั้งช่วง (95% CI) | ผลต่างจับคู่กับ candidate (95% CI) | candidate เฉลี่ย/วันที่ |
+|---|---|---|---|---|---|
+| candidate (ปัจจุบัน) | +1.2% | +2.4% | +1.7% (+0.7% ถึง +2.8%) | – | 30.8 |
+| MoS ≥ 15% | +1.1% | +2.3% | +1.6% (+0.5% ถึง +2.8%) | −0.1% (−0.5% ถึง +0.3%) | 27.6 |
+| MoS ≥ 20% | +1.0% | +2.6% | +1.7% (+0.4% ถึง +3.1%) | +0.0% (−0.7% ถึง +0.8%) | 24.9 |
+| MoS ≥ 25% | +0.4% | +3.2% | +1.7% (+0.0% ถึง +3.4%) | −0.1% (−1.2% ถึง +1.2%) | 21.3 |
+| Option A | +1.1% | +1.8% | +1.4% (+0.5% ถึง +2.4%) | −0.3% (−0.9% ถึง +0.3%) | 37.2 |
+| Option B | +0.6% | +2.5% | +1.5% (+0.5% ถึง +2.5%) | −0.3% (−1.0% ถึง +0.5%) | 33.2 |
+| quality ผ่านทุกข้อ | +0.4% | +1.4% | +0.9% (−0.4% ถึง +2.1%) | −0.9% (−2.3% ถึง +0.4%) | 17.6 |
+| quality ผ่านทุกข้อ + D/E ≤ 2.0 | +0.8% | +0.1% | +0.5% (−0.9% ถึง +1.8%) | −1.3% (−2.7% ถึง −0.2%) | 19.5 |
+
+- MoS ที่สูงขึ้นไม่ได้ดีขึ้นอย่างคงที่: MoS 20% และ 25% ชนะเฉพาะช่วง 2024–26 และแพ้ช่วง 2021–23 ผลต่างจับคู่ราว 0 ทุกระดับ
+- Option A/B ของ Doc 2 ได้ candidate มากขึ้น (+21%/+8%) แต่ excess ต่ำกว่า rule ปัจจุบัน Option A ยอมรับหุ้นที่ method หนึ่งบอกว่าแพงถึง 10% hit rate ของ Option A (20%) ดูสูงเพราะ fair value ของ gate อาจต่ำกว่าราคาอยู่แล้ว ไม่ใช่สัญญาณที่ดีกว่า
+- quality ที่ทุกข้อต้องผ่านแย่กว่า rule ปัจจุบัน (max_failed_checks 2) และเมื่อเพิ่ม D/E 2.0 ผลต่างจับคู่ติดลบอย่างมีนัย (CI ไม่คร่อม 0) ตรงกับที่ `relax-quality-gate` หลวมเกณฑ์ไว้
+- การแบ่งสองช่วงเป็นความคงที่ข้ามช่วง ไม่ใช่ out-of-sample (gate methods ถูกเลือกจากทั้งสองช่วง) ยังไม่เปลี่ยน default ใดใน `config.yaml`
+
 ### กำไรสุทธิและส่วนผู้ถือหุ้นของ yfinance (change `prefer-yfinance-statements` task 1.1, 15 ต.ค. 2026)
 
 เทียบ `Net Income Common Stockholders` (`quarterly_income_stmt`) และ `Stockholders Equity` (`quarterly_balance_sheet`) ของ yfinance กับ `net_profit`, `equity` ของ thaifin ทุกไตรมาสที่ yfinance มี (2Q25–2Q26) และกับงบรวมบน SET (`/api/set/stock/<SYM>/company-highlight/financial-data` ให้แค่งวดปี 2025 และ 6M26) หน่วยล้านบาท

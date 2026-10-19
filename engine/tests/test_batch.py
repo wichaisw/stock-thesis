@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from shortlist import batch, db
-from shortlist.core import candidates
+from shortlist.core import candidates, quality
 from shortlist.config import load_config
 from shortlist.sources import StockInfo
 from shortlist.sources.preferred import PreferredStatements
@@ -399,3 +399,31 @@ def test_backfill_source_error_writes_nothing(tmp_path):
     with pytest.raises(ConnectionError):
         batch.backfill_investor_flow(conn, FakeFlowHistory(error=ConnectionError("refused")))
     assert db.investor_flow(conn) == []
+
+
+def turning_up_prices():
+    # a fall then a short rise: CDC 12/26 has just crossed, 20/50 is still below
+    p = price_history()
+    close = [12 - 3 * i / 99 for i in range(100)] + [9 + 0.6 * i / 19 for i in range(20)]
+    return p.assign(close=close, open=close, high=[c * 1.01 for c in close], low=[c * 0.99 for c in close])
+
+
+def evaluate_with(cfg):
+    prices, q = turning_up_prices(), healthy_quarters()
+    info = StockInfo("AAA", "AAA Co", "Commerce", "SET")
+    return batch.evaluate_stock(info, prices, q, market_caps(q), quality.liquidity(prices, cfg.liquidity), {}, cfg)
+
+
+def test_cdc_settings_do_not_change_quality_or_fair_value():
+    a = evaluate_with(CFG)
+    b = evaluate_with(CFG.model_copy(update={"cdc": CFG.cdc.model_copy(update={"fast_length": 20, "slow_length": 50})}))
+    assert a["cdc"]["state"] != b["cdc"]["state"]
+    assert a["quality"] == b["quality"]
+    assert a["fair_value"] == b["fair_value"]  # includes the MoS gate
+
+
+def test_fair_value_settings_do_not_change_cdc():
+    a = evaluate_with(CFG)
+    b = evaluate_with(CFG.model_copy(update={"fair_value": CFG.fair_value.model_copy(update={"cost_of_equity": 0.15})}))
+    assert a["fair_value"] != b["fair_value"]
+    assert a["cdc"] == b["cdc"]

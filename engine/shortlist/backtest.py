@@ -25,15 +25,50 @@ CANDIDATE = "candidate"  # quality passed and every computable gate method's MoS
 CANDIDATE_MEDIAN = "candidate (median)"  # the old rule kept for comparison: quality passed and median MoS ≥ min_gate_mos
 RELATIVE = "candidate (relative)"  # quality passed and median MoS in the date's top RELATIVE_TOP (design D4)
 RELATIVE_TOP = 0.20
-BOOTSTRAP = 2000
-# same rules as the stock-sanity-check skill
-ABNORMAL_MOS = -1.0
-ABNORMAL_FV_TO_PRICE = 5.0
-# fixed edges so runs compare (design D9); 10% is candidates.min_gate_mos
-BUCKETS = [(-math.inf, 0.0, "< 0"), (0.0, 0.10, "0–10%"), (0.10, 0.30, "10–30%"), (0.30, math.inf, "≥ 30%")]
-POISON_FACTOR = 1000
-# one shuffle of ~14 stocks per date swings ±4% by chance; the mean of 20 settles near the true offset
-PLACEBO_SEEDS = 20
+
+
+def at_least(threshold: float) -> Callable[[list[float]], bool]:
+    """The live gate: at least one computable gate method, and every one ≥ threshold."""
+    return lambda mos: bool(mos) and min(mos) >= threshold
+
+
+def option_a(mos: list[float]) -> bool:
+    """Doc 2 Option A: one ≥ 15% and the other ≥ −10%; a sole computable method (either one) ≥ 12% (design D2)."""
+    if len(mos) == 1:
+        return mos[0] >= 0.12
+    return len(mos) == 2 and max(mos) >= 0.15 and min(mos) >= -0.10
+
+
+def option_b(mos: list[float]) -> bool:
+    """Doc 2 Option B: both computable, mean ≥ 8% and none < −15%. One method has no mean, so it fails (design D2)."""
+    return len(mos) == 2 and statistics.fmean(mos) >= 0.08 and min(mos) >= -0.15
+
+
+@dataclass(frozen=True)
+class Variant:
+    """A backtest-only candidate rule that differs from the live one in one thing (validate-gate-variants D1).
+    `rule` None means the live gate at candidates.min_gate_mos."""
+    name: str
+    flag: str
+    quality: dict
+    rule: Callable[[list[float]], bool] | None = None
+
+
+# validate-gate-variants D3/D4: the split and the adoption rule, fixed before the run
+SPLIT = pd.Timestamp("2024-01-01")
+MIN_MEAN_CANDIDATES = 3
+MIN_DATES_WITH_CANDIDATES = 0.80
+
+VARIANTS = [
+    Variant("candidate MoS ≥ 15%", "v_mos15", {}, at_least(0.15)),
+    Variant("candidate MoS ≥ 20%", "v_mos20", {}, at_least(0.20)),
+    Variant("candidate MoS ≥ 25%", "v_mos25", {}, at_least(0.25)),
+    Variant("candidate Option A", "v_option_a", {}, option_a),
+    Variant("candidate Option B", "v_option_b", {}, option_b),
+    Variant("candidate quality ผ่านทุกข้อ", "v_all_pass", {"max_failed_checks": 0}),
+    Variant("candidate quality ผ่านทุกข้อ + D/E ≤ 2.0", "v_all_pass_de2", {"max_failed_checks": 0, "max_de": 2.0}),
+]
+
 LIMITATIONS = [
     "survivorship bias: หุ้นที่ถูกถอนไม่มีใน yfinance ทั้งกลุ่มและ baseline จึงดูดีเกินจริง excess return ลำเอียงน้อยกว่าผลตอบแทนดิบ แต่ยังลำเอียง",
     "งบ thaifin เป็นค่าล่าสุด ถ้าถูก restate ย้อนหลัง ค่าที่ T เป็นค่าใหม่ ไม่ใช่ค่าที่ประกาศจริง ณ ตอนนั้น (poison check จับไม่ได้)",
@@ -43,8 +78,19 @@ LIMITATIONS = [
     "ตัดหุ้นที่ split, ปันผลเป็นหุ้น หรือ merge ออกทั้งตัว ผลจึงเป็นของหุ้นที่เหลือเท่านั้น",
     "ไม่จำลองการเทรด ไม่มีค่าธรรมเนียม slippage stop หรือ CDC",
     "ที่ 126 และ 252 วัน ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน excess ต่อวันที่จึงไม่เป็นอิสระ t และช่วงความเชื่อมั่นดูแน่นอนกว่าจริง",
-    "เทียบหลายกลุ่มหลายระยะ (ราว 48 ช่วงความเชื่อมั่น) ราว 2 ช่วงจะไม่คร่อม 0 ได้โดยบังเอิญ ตัวตัดสินหลักคือตารางผลรวม 63 วัน",
+    "ตาราง variant แบ่งสองช่วงเป็นความคงที่ข้ามช่วง ไม่ใช่ out-of-sample: gate methods และ MoS 10% ถูกเลือกจากข้อมูลทั้งสองช่วงแล้ว ข้อมูลที่ไม่เคยเห็นจริงคือ candidate_history ตั้งแต่ 15 ต.ค. 2026",
+    f"เปรียบเทียบ {len(VARIANTS)} variant × 2 ช่วง บาง variant จะดูชนะได้โดยบังเอิญ เกณฑ์ตัดสินจึงต้องชนะทั้งสองช่วง CI ทั้งช่วงไม่คร่อม 0 และ candidate ไม่น้อยเกินไปพร้อมกัน และผลไม่เปลี่ยน default เอง",
+    "เทียบหลายกลุ่มหลายระยะ (ราว 90 ช่วงความเชื่อมั่นรวม variant) ราว 4–5 ช่วงจะไม่คร่อม 0 ได้โดยบังเอิญ ตัวตัดสินหลักคือตารางผลรวม 63 วัน",
 ]
+BOOTSTRAP = 2000
+# same rules as the stock-sanity-check skill
+ABNORMAL_MOS = -1.0
+ABNORMAL_FV_TO_PRICE = 5.0
+# fixed edges so runs compare (design D9); 10% is candidates.min_gate_mos
+BUCKETS = [(-math.inf, 0.0, "< 0"), (0.0, 0.10, "0–10%"), (0.10, 0.30, "10–30%"), (0.30, math.inf, "≥ 30%")]
+POISON_FACTOR = 1000
+# one shuffle of ~14 stocks per date swings ±4% by chance; the mean of 20 settles near the true offset
+PLACEBO_SEEDS = 20
 
 
 @dataclass(frozen=True)
@@ -141,6 +187,12 @@ def evaluate_date(
         gate = fair_value.gate(fv["items"], cfg.candidates.gate_methods)
         min_mos = cfg.candidates.min_gate_mos
         candidate = passed and gate["mos"] is not None and gate["mos"] >= min_mos
+        gate_mos = [i["mos"] for i in gate["items"] if i["mos"] is not None]
+        variants = {
+            v.flag: (quality.evaluate(s.quarterly, s.info.sector, cfg.quality.model_copy(update=v.quality))["passed"]
+                     if v.quality else passed) and (v.rule or at_least(min_mos))(gate_mos)
+            for v in VARIANTS
+        }
         candidate_median = passed and summary["median_mos"] is not None and summary["median_mos"] >= min_mos
         items = [(i["method"], i["fair_value"], i["mos"]) for i in fv["items"]]
         items.append((MEDIAN, summary["median_fair_value"], summary["median_mos"]))
@@ -149,7 +201,7 @@ def evaluate_date(
             rows.append({
                 "date": t, "symbol": sym, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
                 "quality_passed": passed, "candidate": candidate, "candidate_median": candidate_median,
-                "abnormal": abnormal(value, mos, price[sym]),
+                "abnormal": abnormal(value, mos, price[sym]), **variants,
             })
     top = top_share({r["symbol"]: r["mos"] for r in rows if r["method"] == MEDIAN})
     for r in rows:
@@ -190,6 +242,8 @@ def with_outcomes(rows: pd.DataFrame, prices: dict[str, pd.DataFrame]) -> pd.Dat
 
 
 CANDIDATE_GROUPS = [(CANDIDATE, GATE, "candidate"), (CANDIDATE_MEDIAN, MEDIAN, "candidate_median"), (RELATIVE, MEDIAN, "relative")]
+# variants read the gate row like `candidate`, so hit is measured against the gate's fair value
+CANDIDATE_GROUPS += [(v.name, GATE, v.flag) for v in VARIANTS]
 CANDIDATE_NAMES = {name for name, _, _ in CANDIDATE_GROUPS}
 
 
@@ -223,11 +277,14 @@ def shuffled(g: pd.DataFrame, seed: int) -> pd.DataFrame:
     return out
 
 
+def per_date_excess(g: pd.DataFrame, baseline: pd.Series, ret: str = "ret") -> pd.Series:
+    return (g[g["selected"]].groupby("date")[ret].mean() - baseline).dropna()
+
+
 def excess(g: pd.DataFrame, baseline: pd.Series, ret: str = "ret", spread: bool = False) -> dict:
     """Per date: mean return of the selected stocks − that date's equal-weight baseline, then summarized
     across dates so every quarter weighs the same (design D5). `spread` adds t and the 95% CI."""
-    per_date = g[g["selected"]].groupby("date")[ret].mean() - baseline
-    per_date = per_date.dropna()
+    per_date = per_date_excess(g, baseline, ret)
     out = {"dates": len(per_date), "mean": None, "median": None, "positive": None}
     if len(per_date):
         out |= {
@@ -265,6 +322,62 @@ def summarize(done: pd.DataFrame, baseline: pd.Series, min_mos: float, seed: int
             **{f"placebo_{k}": v for k, v in placebo.items()},
         })
     return pd.DataFrame(out)
+
+
+def periods(done: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
+    """The two halves of design D3, labelled by their first and last test quarter."""
+    out = []
+    for part in (done[done["date"] < SPLIT], done[done["date"] >= SPLIT]):
+        if len(part):
+            first, last = part["date"].min().to_period("Q"), part["date"].max().to_period("Q")
+            out.append((f"{first}–{last}", part))
+    return out
+
+
+def picks(g: pd.DataFrame) -> pd.Series:
+    """Selected stocks per date, 0 on dates the group picked none."""
+    return g.groupby("date")["selected"].sum()
+
+
+def variants(done: pd.DataFrame, baseline: pd.Series, min_mos: float) -> dict[str, pd.DataFrame]:
+    """`periods`: candidate and every variant per half. `verdict`: each variant against the pre-set rule (design D4),
+    plus the paired per-date difference with candidate, shown but not part of the rule."""
+    names = [CANDIDATE] + [v.name for v in VARIANTS]
+    period_rows = []
+    for label, part in periods(done):
+        g = groups(part, min_mos)
+        for name in names:
+            n = picks(g[name])
+            period_rows.append({"group": name, "period": label, **excess(g[name], baseline, spread=True),
+                                "mean_candidates": float(n.mean()) if len(n) else None,
+                                "dates_without": int((n == 0).sum())})
+    by_period = pd.DataFrame(period_rows)
+    full = groups(done, min_mos)
+    base = per_date_excess(full[CANDIDATE], baseline)
+    verdict_rows = []
+    for v in VARIANTS:
+        own = per_date_excess(full[v.name], baseline)
+        diff = (own - base).dropna()
+        n = picks(full[v.name])
+        whole = excess(full[v.name], baseline, spread=True)
+        halves = by_period.set_index(["period", "group"])["mean"].astype(float)
+        # a half where either group has no excess is not a win (NaN compares False)
+        beats = [halves[(label, v.name)] > halves[(label, CANDIDATE)] for label, _ in periods(done)]
+        why = []
+        if not (beats and all(beats)):
+            why.append("ไม่ชนะ candidate ทุกช่วง")
+        if whole["ci_low"] is None or whole["ci_low"] <= 0:
+            why.append("95% CI คร่อม 0")
+        if not len(n) or n.mean() < MIN_MEAN_CANDIDATES or (n > 0).mean() < MIN_DATES_WITH_CANDIDATES:
+            why.append("candidate น้อยเกินไป")
+        verdict_rows.append({
+            "group": v.name, "diff_dates": len(diff), "diff_mean": float(diff.mean()) if len(diff) else None,
+            **{f"diff_{k}": x for k, x in uncertainty(diff.tolist()).items()},
+            "mean_candidates": float(n.mean()) if len(n) else None,
+            "dates_with": float((n > 0).mean()) if len(n) else None,
+            "passed": not why, "why": ", ".join(why),
+        })
+    return {"periods": by_period, "verdict": pd.DataFrame(verdict_rows)}
 
 
 def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.DataFrame]:
@@ -305,6 +418,7 @@ def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.D
         "horizons": pd.DataFrame(by_horizon),
         "buckets": pd.DataFrame(buckets),
         "baseline": baseline,
+        **variants(done, baseline, min_mos),
     }
 
 
@@ -475,6 +589,21 @@ def report(
         "จำนวนที่คำนวณได้ต่อ method (วันที่ช่วงต้นมีจุดใน band น้อยกว่า 20)",
         _table(["วันที่", "ประเมิน", "ข้าม (cap ขาด)", "candidate", "baseline"] + methods
                + ["candidate %", "candidate (median)", "candidate (median) %", "relative", "relative %"], per_date),
+        "## variant ของ candidate rule",
+        "แต่ละ variant ต่างจาก candidate ทีละอย่าง ใช้ตัววัดเดียวกัน แบ่งสองช่วงเป็นความคงที่ข้ามช่วง ไม่ใช่ out-of-sample "
+        f"เกณฑ์ที่ตั้งไว้ก่อนรัน: excess เฉลี่ย {HORIZON} วันสูงกว่า candidate ทั้งสองช่วง, ขอบล่าง 95% CI ทั้งช่วง > 0, "
+        f"candidate เฉลี่ย ≥ {MIN_MEAN_CANDIDATES} ตัวต่อวันที่ และมี candidate ≥ {MIN_DATES_WITH_CANDIDATES:.0%} ของวันที่ "
+        "(นับค่าผิดปกติ) ผลนี้ไม่เปลี่ยน engine/config.yaml",
+        _table(["กลุ่ม", "ช่วง", "วันที่", "excess เฉลี่ย", "95% CI", "t", "candidate เฉลี่ย/วันที่", "วันที่ไม่มี candidate"],
+               [[r.group, r.period, r.dates, _pct(r.mean), _ci(r.ci_low, r.ci_high), _t(r.t),
+                 "–" if r.mean_candidates is None else f"{r.mean_candidates:.1f}", r.dates_without]
+                for r in result["periods"].itertuples()]),
+        "ผลต่างจับคู่ = excess ต่อวันที่ของ variant − candidate เฉพาะวันที่ที่มีทั้งสองกลุ่ม (ข้อมูลประกอบ ไม่ใช่ส่วนของเกณฑ์)",
+        _table(["variant", "ผลต่างจับคู่ เฉลี่ย", "95% CI", "วันที่", "candidate เฉลี่ย/วันที่", "% วันที่มี candidate", "ผ่านเกณฑ์", "เหตุผล"],
+               [[r.group, _pct(r.diff_mean), _ci(r.diff_ci_low, r.diff_ci_high), r.diff_dates,
+                 "–" if r.mean_candidates is None else f"{r.mean_candidates:.1f}", _rate(r.dates_with),
+                 "ผ่าน" if r.passed else "ไม่ผ่าน", r.why or "–"]
+                for r in result["verdict"].itertuples()]),
         f"## หุ้นที่ตัด ({len(excluded)} ตัว, {share:.0%})",
         ", ".join(f"{k} {v} ตัว" for k, v in by_reason.items()),
         _table(["หุ้น", "เหตุผล"], [[k, v] for k, v in sorted(excluded.items())]) if excluded else "ไม่มี",

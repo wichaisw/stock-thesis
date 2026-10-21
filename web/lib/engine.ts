@@ -193,3 +193,20 @@ export type MonthlyNetPoint = {
   month: string;
   fetched_at: string;
 } & Record<`${InvestorType}_net`, number>;
+
+export type Verdict = "cut" | "prepare" | "wait" | "hold" | "no_data";
+
+export type Holding = {
+  symbol: string;
+  cost: number;
+  buy_date: string;
+  verdict: Verdict;
+  price: number | null;
+  price_date: string | null;
+  pnl: number | null;
+  stop: number | null;
+  reasons: string[];
+  tags: string[];
+};
+
+export type HoldingsResponse = { price_date: string | null; run_id: number | null; holdings: Holding[] };

@@ -487,3 +487,62 @@ def test_no_retry_line_without_a_retry(tmp_path):
     lines = []
     batch.run(db.connect(tmp_path / "t.db"), *fake_sources(), CFG, lines.append)
     assert not any("ดึงราคาซ้ำ" in l for l in lines)
+
+
+def illiquid_holding_sources(broken: bool = False):
+    low = price_history().assign(volume=10.0)  # far below the liquidity filter
+    stocks = [StockInfo(s, f"{s} Co", "Commerce", "SET") for s in ["AAA", "HELD", "LOW"]]
+    prices = FakePrices(
+        {"AAA": price_history(), "HELD": low, "LOW": low},
+        {"AAA": market_caps(healthy_quarters()), "HELD": market_caps(healthy_quarters())},
+    )
+    statements = {"AAA": healthy_quarters(), "HELD": healthy_quarters(), "LOW": healthy_quarters()}
+    fin = FakeFinancials(stocks, statements, broken={"HELD"} if broken else set())
+    return prices, fin
+
+
+def test_illiquid_holding_gets_statements_but_stays_off_the_list(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.add_holding(conn, "HELD", 10.0, date(2026, 1, 5))
+    prices, fin = illiquid_holding_sources()
+    run_id = batch.run(conn, prices, fin, CFG)
+
+    held = db.evaluation(conn, run_id, "HELD")
+    assert held["quality"] is not None and held["fair_value"] is not None
+    assert not held["liquidity"]["passed"]
+    assert held["candidate_rank"] is None and not held["inclusion"]["included"]
+    assert db.evaluation(conn, run_id, "LOW")["quality"] is None  # not held: still never fetched
+    assert "LOW" not in fin.calls
+
+
+def test_illiquid_holding_does_not_move_peer_pe(tmp_path):
+    def sources():
+        # three liquid peers for AAA, plus an illiquid holding priced far higher (a much higher PE)
+        liquid = ["AAA", "P1", "P2", "P3"]
+        stocks = [StockInfo(s, f"{s} Co", "Commerce", "SET") for s in liquid + ["HELD"]]
+        caps = {s: market_caps(healthy_quarters()) for s in liquid + ["HELD"]}
+        # different peer PEs, so adding one more peer moves the median
+        series = {"AAA": price_history(), "P1": price_history(), "P2": price_history(start=13, end=16),
+                  "P3": price_history(start=17, end=20), "HELD": price_history(start=30, end=40).assign(volume=10.0)}
+        return FakePrices(series, caps), FakeFinancials(stocks, {s: healthy_quarters() for s in liquid + ["HELD"]})
+
+    with_holding = db.connect(tmp_path / "a.db")
+    db.add_holding(with_holding, "HELD", 10.0, date(2026, 1, 5))
+    run_a = batch.run(with_holding, *sources(), CFG)
+    without = db.connect(tmp_path / "b.db")
+    run_b = batch.run(without, *sources(), CFG)
+    fv = db.evaluation(with_holding, run_a, "AAA")["fair_value"]
+    assert next(i for i in fv["items"] if i["method"] == "peer_pe")["fair_value"] is not None
+    assert fv == db.evaluation(without, run_b, "AAA")["fair_value"]
+    assert db.evaluation(with_holding, run_a, "HELD")["fair_value"] is not None
+
+
+def test_illiquid_holding_statement_error_still_evaluates_without_statements(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    db.add_holding(conn, "HELD", 10.0, date(2026, 1, 5))
+    lines = []
+    run_id = batch.run(conn, *illiquid_holding_sources(broken=True), CFG, log=lines.append)
+    ev = db.evaluation(conn, run_id, "HELD")
+    assert ev["quality"] is None and ev["cdc"]["state"] is not None
+    assert "HELD" not in db.failures(conn, run_id)
+    assert any("HELD (หุ้นที่ถือ)" in line for line in lines)

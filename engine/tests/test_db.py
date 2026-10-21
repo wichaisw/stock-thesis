@@ -253,3 +253,29 @@ def test_first_connect_seeds_history_from_the_latest_successful_run_once(tmp_pat
     assert db.history(seeded, "2026-10-15")["run_id"] == run_id
     seeded.close()
     assert len(db.history(db.connect(path), "2026-10-15")["candidates"]) == 2  # not seeded twice
+
+
+def test_holdings_add_duplicate_delete_and_survive_runs(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    assert db.add_holding(conn, "PTT", 33.5, date(2026, 10, 1))
+    assert not db.add_holding(conn, "PTT", 30.0, date(2026, 10, 2))
+    assert db.add_holding(conn, "CPALL", 50.0, date(2026, 9, 1))
+    run_with(conn, "2026-10-20", ["PTT"])
+    assert db.holdings(conn) == [
+        {"symbol": "CPALL", "cost": 50.0, "buy_date": "2026-09-01"},
+        {"symbol": "PTT", "cost": 33.5, "buy_date": "2026-10-01"},
+    ]
+    assert db.delete_holding(conn, "CPALL")
+    assert not db.delete_holding(conn, "CPALL")
+    assert [h["symbol"] for h in db.holdings(conn)] == ["PTT"]
+
+
+def test_prices_round_trip(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    df = pd.DataFrame({"open": [1.0, 2.0], "high": [1.0, 2.0], "low": [1.0, 2.0], "close": [1.0, 2.0], "volume": [5.0, 6.0]},
+                      index=pd.DatetimeIndex(["2026-10-19", "2026-10-20"]))
+    db.save_run(conn, db.start_run(conn, stale_minutes=30), db.RunResults([], {"PTT": df}, {}, [], {}, "2026-10-20"))
+    got = db.prices(conn, "PTT")
+    assert list(got.index.strftime("%Y-%m-%d")) == ["2026-10-19", "2026-10-20"]
+    assert list(got["close"]) == [1.0, 2.0]
+    assert db.prices(conn, "NONE").empty

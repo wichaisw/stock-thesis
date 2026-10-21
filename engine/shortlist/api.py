@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, ValidationError
 from shortlist import batch, db
 from shortlist.config import DEFAULT_PATH as CONFIG_PATH
 from shortlist.config import SECTION_TITLES, STATE_LABELS, Config, editable_fields, load_config
-from shortlist.core import catalyst
+from shortlist.core import catalyst, exit
 from shortlist.core.fair_value import LABELS as FAIR_VALUE_LABELS
 
 log = logging.getLogger("shortlist")
@@ -28,6 +28,12 @@ if not log.handlers:
 class EventIn(BaseModel):
     date: date
     text: str = Field(min_length=1, max_length=200)
+
+
+class HoldingIn(BaseModel):
+    symbol: str
+    cost: float
+    buy_date: date
 
 
 OPTION_LABELS = FAIR_VALUE_LABELS | STATE_LABELS
@@ -287,6 +293,40 @@ def create_app(
     def delete_event(event_id: int, c: sqlite3.Connection = Depends(conn)) -> Response:
         if not db.delete_event(c, event_id):
             raise HTTPException(404, "ไม่พบ event")
+        return Response(status_code=204)
+
+    @app.get("/holdings")
+    def holdings(c: sqlite3.Connection = Depends(conn)) -> dict:
+        run = db.latest_successful_run(c)
+        cfg = current_config(c)
+        fails = db.failures(c, run["id"]) if run else {}
+        rows = []
+        for h in db.holdings(c):
+            prices = db.prices(c, h["symbol"])
+            ev = db.evaluation(c, run["id"], h["symbol"]) if run and not prices.empty else None
+            failure = fails.get(h["symbol"]) or (None if run else "ยังไม่มี run ที่สำเร็จ")
+            buy = date.fromisoformat(h["buy_date"])
+            rows.append(h | exit.evaluate(h["cost"], buy, ev, prices, cfg, failure))
+        rows.sort(key=lambda r: (exit.VERDICTS.index(r["verdict"]), r["symbol"]))
+        return {"price_date": run["price_date"] if run else None, "run_id": run["id"] if run else None, "holdings": rows}
+
+    @app.post("/holdings", status_code=201)
+    def add_holding(holding: HoldingIn, c: sqlite3.Connection = Depends(conn)) -> dict:
+        symbol = holding.symbol.strip().upper()
+        if holding.cost <= 0:
+            raise HTTPException(422, "ราคาต้นทุนต้องมากกว่า 0")
+        if holding.buy_date > today():
+            raise HTTPException(422, "วันที่ซื้อต้องไม่เกินวันนี้")
+        if not db.stock(c, symbol):
+            raise HTTPException(404, f"ไม่พบหุ้น {symbol}")
+        if not db.add_holding(c, symbol, holding.cost, holding.buy_date):
+            raise HTTPException(409, f"ถือ {symbol} อยู่แล้ว ลบแถวเดิมก่อนถ้าจะเปลี่ยนต้นทุนหรือวันที่ซื้อ")
+        return {"symbol": symbol, "cost": holding.cost, "buy_date": holding.buy_date.isoformat()}
+
+    @app.delete("/holdings/{symbol}", status_code=204)
+    def delete_holding(symbol: str, c: sqlite3.Connection = Depends(conn)) -> Response:
+        if not db.delete_holding(c, symbol.upper()):
+            raise HTTPException(404, "ไม่พบหุ้นที่ถือ")
         return Response(status_code=204)
 
     return app

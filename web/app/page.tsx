@@ -49,6 +49,9 @@ async function CandidateList() {
             <Link href="/history" className={secondaryButton}>
               ประวัติ candidate
             </Link>
+            <Link href="/holdings" className={secondaryButton}>
+              หุ้นที่ถือ
+            </Link>
             <Link href="/investor-flow" className={secondaryButton}>
               ประเภทนักลงทุน
             </Link>

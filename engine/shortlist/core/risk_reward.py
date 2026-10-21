@@ -4,12 +4,16 @@ from shortlist.config import RiskReward
 from shortlist.core import num
 
 
+def stop_level(prices: pd.DataFrame, slow: float | None, cfg: RiskReward) -> float:
+    swing_low = float(prices["low"].tail(cfg.swing_low_days).min())
+    # without enough history for CDC there is no Slow EMA, so the swing low alone sets the stop
+    return min(swing_low, slow * (1 - cfg.stop_buffer)) if slow else swing_low
+
+
 def evaluate(prices: pd.DataFrame, slow: float | None, fair_value: dict, cfg: RiskReward) -> dict:
     """Target is the lower fair value of the gate methods, never the panel median (design D6: no fallback)."""
     entry = float(prices["close"].iloc[-1])
-    swing_low = float(prices["low"].tail(cfg.swing_low_days).min())
-    # without enough history for CDC there is no Slow EMA, so the swing low alone sets the stop
-    stop = min(swing_low, slow * (1 - cfg.stop_buffer)) if slow else swing_low
+    stop = stop_level(prices, slow, cfg)
     target = fair_value["gate"]["fair_value"]
 
     result = {

@@ -93,3 +93,26 @@ def test_lines_follow_ohlc4_formula():
     ap = ema_list([10.125, 11.125, 12.125], 2)
     assert df["ap"].tolist() == pytest.approx(ap)
     assert df["fast"].tolist() == pytest.approx(ema_list(ap, 12))
+
+
+def test_bull_gap_narrowing_gives_eta():
+    # bull gap 2% five days ago, 1% today -> speed 0.2%/day -> ETA 5
+    fast, slow = lines_with_gap([-0.03] * 60 + [-0.02, -0.018, -0.016, -0.014, -0.012, -0.01])
+    assert cdc.bull_eta(fast, slow, CFG) == pytest.approx(5)
+
+
+def test_bull_gap_widening_has_no_eta():
+    fast, slow = lines_with_gap([-0.01] * 60 + [-0.01, -0.012, -0.014, -0.016, -0.018, -0.02])
+    assert cdc.bull_eta(fast, slow, CFG) is None
+
+
+def test_bull_eta_none_when_bear():
+    fast, slow = lines_with_gap([0.03] * 60 + [0.02, 0.018, 0.016, 0.014, 0.012, 0.01])
+    assert cdc.bull_eta(fast, slow, CFG) is None
+
+
+def test_bull_state_still_has_no_eta_in_classify():
+    fast, slow = lines_with_gap([-0.03] * 60 + [-0.02, -0.018, -0.016, -0.014, -0.012, -0.01])
+    r = cdc.classify(fast, slow, CFG)
+    assert r["state"] == "bull"
+    assert r["eta_days"] is None

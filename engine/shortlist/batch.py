@@ -1,7 +1,7 @@
 import sqlite3
 import time
 from datetime import date
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 
 import pandas as pd
 
@@ -118,7 +118,8 @@ def execute(
     flow_src: InvestorFlowSource | None = None,
 ) -> None:
     try:
-        db.save_run(conn, run_id, collect(prices_src, fin_src, cfg, log))
+        held = {h["symbol"] for h in db.holdings(conn)}
+        db.save_run(conn, run_id, collect(prices_src, fin_src, cfg, log, held))
     except BatchAborted as e:
         log(str(e))
         db.fail_run(conn, run_id, str(e))
@@ -180,7 +181,9 @@ def backfill_investor_flow(conn: sqlite3.Connection, src: InvestorFlowHistorySou
     return db.backfill_investor_flow(conn, flows, "infoquest")
 
 
-def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log) -> db.RunResults:
+def collect(
+    prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log: Log, held: Collection[str] = ()
+) -> db.RunResults:
     guard = RunGuard(cfg.batch)
     try:
         stocks = fin_src.list_stocks()
@@ -205,10 +208,12 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
 
     liquidity = {sym: quality.liquidity(p, cfg.liquidity) for sym, p in prices.items()}
     liquid = [sym for sym, r in liquidity.items() if r["passed"]]
-    log(f"ผ่าน liquidity {len(liquid)} ตัว ดึงงบ...")
+    # holdings below the filter get statements for their exit verdict only; they stay out of the list (exit-watchlist D6)
+    held_illiquid = sorted(s for s in held if s in prices and s not in liquid)
+    log(f"ผ่าน liquidity {len(liquid)} ตัว" + (f" + หุ้นที่ถือ {len(held_illiquid)} ตัว" if held_illiquid else "") + " ดึงงบ...")
     quarterly: dict[str, pd.DataFrame] = {}
     caps: dict[str, pd.DataFrame] = {}
-    for sym in liquid:
+    for sym in liquid + held_illiquid:
         guard.check("ดึงงบและ market cap")
         try:
             quarterly[sym] = fin_src.fetch_quarterly(sym)
@@ -230,6 +235,10 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
             failures[sym] = f"ดึง market cap ไม่ได้: {reason}"
         guard.record(sym, network)
 
+    for sym in held_illiquid:
+        # losing its CDC and stop over a statements error would leave the holding with no verdict at all
+        if sym in failures:
+            log(f"{sym} (หุ้นที่ถือ) {failures.pop(sym)} ประเมินต่อโดยไม่มีงบ")
     log(f"ดึงงบและ market cap {len(quarterly)} ตัว ({guard.lap()})")
     # a sudden drop to 0 means yfinance renamed a row and everything fell back to thaifin silently
     if (overlaid := getattr(fin_src, "overlaid", None)) is not None:
@@ -239,6 +248,8 @@ def collect(prices_src: PriceSource, fin_src: FinancialSource, cfg: Config, log:
     pe_by_symbol = {
         sym: (by_symbol[sym].sector, fair_value.current_pe(q, float(prices[sym]["close"].iloc[-1]), caps[sym]))
         for sym, q in quarterly.items()
+        # an illiquid holding would otherwise move every sector peer's PE median, and with it the list
+        if sym not in held_illiquid
     }
 
     evaluations = []

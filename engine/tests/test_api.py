@@ -278,3 +278,43 @@ def test_investor_flow_monthly_oldest_first_or_empty(client):
     rows = c.get("/investor-flow/monthly").json()
     assert [r["month"] for r in rows] == ["2025-10", "2025-11", "2026-10"]
     assert rows[0]["foreign_net"] == 5e9 and "fetched_at" in rows[0]
+
+
+def test_holdings_add_validate_verdict_and_delete(client):
+    c, _ = client
+    c.post("/runs")
+    # added after the run: the verdict comes straight from the latest run, no new batch needed
+    assert c.post("/holdings", json={"symbol": "bbb", "cost": 5.0, "buy_date": "2026-08-03"}).status_code == 201
+    assert c.post("/holdings", json={"symbol": "AAA", "cost": 12.0, "buy_date": "2026-08-03"}).status_code == 201
+
+    bad = [
+        ({"symbol": "ZZZ", "cost": 1.0, "buy_date": "2026-08-03"}, 404, "ไม่พบหุ้น ZZZ"),
+        ({"symbol": "AAA", "cost": 1.0, "buy_date": "2026-08-03"}, 409, "ถือ AAA อยู่แล้ว"),
+        ({"symbol": "BBB", "cost": 0, "buy_date": "2026-08-03"}, 422, "ราคาต้นทุนต้องมากกว่า 0"),
+        ({"symbol": "BBB", "cost": 1.0, "buy_date": "2026-10-15"}, 422, "วันที่ซื้อต้องไม่เกินวันนี้"),
+    ]
+    for body, status, message in bad:
+        r = c.post("/holdings", json=body)
+        assert r.status_code == status and r.json()["detail"].startswith(message)
+
+    body = c.get("/holdings").json()
+    assert body["price_date"] == "2026-10-14"
+    aaa, bbb = body["holdings"]  # no_data sorts last
+    assert aaa["symbol"] == "AAA" and aaa["verdict"] in ["cut", "prepare", "wait", "hold"]
+    assert aaa["price"] == 11.0 and aaa["stop"] is not None and aaa["pnl"] < 0
+    assert (bbb["symbol"], bbb["verdict"], bbb["reasons"]) == ("BBB", "no_data", ["ไม่มีข้อมูลราคา"])
+
+    assert c.delete("/holdings/bbb").status_code == 204
+    assert c.delete("/holdings/BBB").status_code == 404
+    assert [h["symbol"] for h in c.get("/holdings").json()["holdings"]] == ["AAA"]
+
+
+def test_holdings_sort_cut_first(client):
+    c, path = client
+    c.post("/runs")
+    conn = db.connect(path)
+    # AAA slid from 14 to 11: the close is under the stop frozen at the buy date (about 11.9)
+    db.add_holding(conn, "AAA", 12.5, date(2026, 8, 5))
+    rows = c.get("/holdings").json()["holdings"]
+    assert rows[0]["verdict"] == "cut"
+    assert any("ต่ำกว่า stop" in r for r in rows[0]["reasons"])

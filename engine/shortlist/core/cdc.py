@@ -53,3 +53,13 @@ def classify(fast: pd.Series, slow: pd.Series, cfg: Cdc) -> dict:
         "days_since_cross": days_since_cross,
         "reason": None,
     }
+
+
+def bull_eta(fast: pd.Series, slow: pd.Series, cfg: Cdc) -> float | None:
+    """Trading days until Fast drops below Slow at the current narrowing speed, the mirror of the bear ETA."""
+    gap = (fast - slow) / slow
+    if gap.iloc[-1] <= 0:
+        return None
+    n = cfg.speed_window
+    speed = (gap.iloc[-1 - n] - gap.iloc[-1]) / n
+    return num(gap.iloc[-1] / speed, 1) if speed > 0 else None

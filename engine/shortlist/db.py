@@ -72,6 +72,13 @@ CREATE TABLE IF NOT EXISTS candidate_history_days (
     price_date TEXT PRIMARY KEY,
     run_id INTEGER NOT NULL
 );
+-- entered by the user and kept across runs; the exit verdict is computed on read (exit-watchlist D1)
+CREATE TABLE IF NOT EXISTS holdings (
+    symbol TEXT PRIMARY KEY,
+    cost REAL NOT NULL,
+    buy_date TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS manual_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
@@ -333,6 +340,31 @@ def delete_event(conn: sqlite3.Connection, event_id: int) -> bool:
 def events(conn: sqlite3.Connection, symbol: str) -> list[dict]:
     rows = conn.execute("SELECT * FROM manual_events WHERE symbol=? ORDER BY date", (symbol,))
     return [dict(r) for r in rows]
+
+
+def add_holding(conn: sqlite3.Connection, symbol: str, cost: float, buy_date: date) -> bool:
+    """False when the symbol is already held: one row per stock, delete it first to change it."""
+    try:
+        with conn:
+            conn.execute("INSERT INTO holdings VALUES (?, ?, ?, ?)", (symbol, cost, buy_date.isoformat(), _now().isoformat()))
+    except sqlite3.IntegrityError:
+        return False
+    return True
+
+
+def delete_holding(conn: sqlite3.Connection, symbol: str) -> bool:
+    with conn:
+        return conn.execute("DELETE FROM holdings WHERE symbol=?", (symbol,)).rowcount > 0
+
+
+def holdings(conn: sqlite3.Connection) -> list[dict]:
+    return [dict(r) for r in conn.execute("SELECT symbol, cost, buy_date FROM holdings ORDER BY symbol")]
+
+
+def prices(conn: sqlite3.Connection, symbol: str) -> pd.DataFrame:
+    rows = conn.execute("SELECT date, open, high, low, close FROM prices_daily WHERE symbol=? ORDER BY date", (symbol,))
+    df = pd.DataFrame([dict(r) for r in rows], columns=["date", "open", "high", "low", "close"])
+    return df.set_index(pd.DatetimeIndex(df.pop("date")))
 
 
 def settings(conn: sqlite3.Connection) -> dict:

@@ -34,6 +34,16 @@ uv run shortlist-backfill-flow   # ราว 3 นาที รันซ้ำ�
 - แถวมีคอลัมน์ `source` (`set` หรือ `infoquest`) การเติมไม่ทับวันที่มีจาก SET แล้ว ส่วน batch ที่ดึงจาก SET ทับวันจาก InfoQuest ได้ ลบเฉพาะที่เติมได้ด้วย `DELETE FROM investor_flow WHERE source = 'infoquest'`
 - ก่อนเขียน คำสั่งเทียบทุกวันที่มีค่าปิดตลาดจาก SET อยู่แล้ว (ซื้อและขายของทุกประเภทต่างไม่เกิน 0.01 ล้านบาท) ถ้าวันใดไม่ตรง หรือไม่มีวันให้เทียบ จะไม่เขียนอะไรเลย แถวระหว่างวันไม่ถูกใช้เทียบเพราะยังไม่ใช่ค่าปิดตลาด
 
+## หุ้นที่ถือ
+
+ตาราง `holdings` (symbol, cost, buy_date) ผู้ใช้ใส่เอง `save_run` ไม่แตะ คำตัดสินคำนวณตอนเรียก `GET /holdings` ด้วย `shortlist/core/exit.py` จาก evaluation ของ run ล่าสุดที่สำเร็จและ `prices_daily` ไม่ได้เก็บไว้ใน run หุ้นที่เพิ่มหลัง batch จึงได้คำตัดสินทันที
+
+- stop = `risk_reward.stop_level` บนราคาถึงแท่งสุดท้าย ≤ วันที่ซื้อ (ต้องมีอย่างน้อย `cdc.min_days` แท่ง) คำนวณใหม่ทุกครั้งจากราคาที่ปรับ split แล้ว จึงไม่ต้องเก็บ
+- ETA ฝั่ง bull (`cdc.bull_eta`) เป็นกระจกของ ETA ฝั่ง bear ใช้ `cdc.speed_window` และ `cdc.approaching_eta_days` ไม่อยู่ใน `cdc.classify` เพื่อไม่ให้ evaluation ของ candidate `just-crossed` มี ETA
+- batch ดึงงบให้หุ้นที่ถือที่ไม่ผ่าน liquidity ด้วย หุ้นเหล่านี้ไม่ถูกนับใน peer PE ของหุ้นอื่น (ไม่อย่างนั้น fair value ของทั้ง sector ขยับ) และถ้าดึงงบไม่ได้จะ log แล้วประเมินต่อโดยไม่มีงบ แทนที่จะเป็น failure
+- `POST /holdings` ตอบ 404 เมื่อไม่มี symbol ในรายชื่อหุ้นของ run ล่าสุด, 409 เมื่อถืออยู่แล้ว, 422 เมื่อต้นทุน ≤ 0 หรือวันที่ซื้อเกินวันนี้ `DELETE /holdings/{symbol}`
+- กฎยังไม่ผ่าน backtest
+
 ## ค่าเกณฑ์มาจากไหน
 
 batch, CLI (cron) และหน้ารายละเอียดหุ้นใช้ config ชุดเดียวกัน (`load_config(path, db.settings(conn))`) รวมจากสองที่ตามลำดับ

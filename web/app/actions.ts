@@ -53,6 +53,27 @@ export async function deleteEvent(id: number): Promise<void> {
   refresh();
 }
 
+export async function addHolding(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  try {
+    await engine("/holdings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ symbol: form.get("symbol"), cost: form.get("cost"), buy_date: form.get("buy_date") }),
+    });
+  } catch (e) {
+    // the engine's own checks send Thai text; a missing or malformed field comes back as pydantic's list
+    if (e instanceof EngineError && typeof e.detail === "string") return { error: e.message };
+    return { error: e instanceof EngineError && e.status === 422 ? "กรอก symbol ราคาต้นทุน และวันที่ซื้อให้ครบ" : "บันทึกไม่ได้" };
+  }
+  refresh();
+  return { error: null };
+}
+
+export async function deleteHolding(symbol: string): Promise<void> {
+  await engine(`/holdings/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+  refresh();
+}
+
 export type SettingsResult = {
   errors: Record<string, string>;
   message: string | null;

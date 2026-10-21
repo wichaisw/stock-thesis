@@ -23,7 +23,13 @@ cd web && bun install && cp .env.example .env.local && cd ..
 
 ## รัน
 
-เปิด 2 terminal
+รัน engine กับ web พร้อมกันจาก root ของ repo ด้วยคำสั่งเดียว (Ctrl+C หยุดทั้งคู่ ถ้าตัวใดตัวหนึ่งล้ม อีกตัวจะหยุดตาม)
+
+```sh
+bunx concurrently -k -n engine,web "cd engine && uv run uvicorn shortlist.api:app --port 8000" "cd web && bun run dev"
+```
+
+หรือเปิด 2 terminal แยกกัน
 
 ```sh
 # 1. engine API ที่ http://127.0.0.1:8000

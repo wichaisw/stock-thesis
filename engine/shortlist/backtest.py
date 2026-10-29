@@ -25,6 +25,8 @@ CANDIDATE = "candidate"  # quality passed and every computable gate method's MoS
 CANDIDATE_MEDIAN = "candidate (median)"  # the old rule kept for comparison: quality passed and median MoS ≥ min_gate_mos
 RELATIVE = "candidate (relative)"  # quality passed and median MoS in the date's top RELATIVE_TOP (design D4)
 RELATIVE_TOP = 0.20
+BANKING = "Banking"  # banks only, not quality.financial_sectors (backtest-ex-banking-variant D2)
+WHOLE = "ทั้งช่วง"
 
 
 def at_least(threshold: float) -> Callable[[list[float]], bool]:
@@ -81,6 +83,7 @@ LIMITATIONS = [
     "ที่ 126 และ 252 วัน ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน excess ต่อวันที่จึงไม่เป็นอิสระ t และช่วงความเชื่อมั่นดูแน่นอนกว่าจริง",
     "ตาราง variant แบ่งสองช่วงเป็นความคงที่ข้ามช่วง ไม่ใช่ out-of-sample: gate methods และ MoS 10% ถูกเลือกจากข้อมูลทั้งสองช่วงแล้ว ข้อมูลที่ไม่เคยเห็นจริงคือ candidate_history ตั้งแต่ 15 ต.ค. 2026",
     f"เปรียบเทียบ {len(VARIANTS)} variant × 2 ช่วง บาง variant จะดูชนะได้โดยบังเอิญ เกณฑ์ตัดสินจึงต้องชนะทั้งสองช่วง CI ทั้งช่วงไม่คร่อม 0 และ candidate ไม่น้อยเกินไปพร้อมกัน และผลไม่เปลี่ยน default เอง",
+    "ตาราง candidate นอกธนาคารใช้ sector ล่าสุดจาก thaifin ไม่ใช่ sector ณ วันที่ทดสอบ",
     "เทียบหลายกลุ่มหลายระยะ (ราว 90 ช่วงความเชื่อมั่นรวม variant) ราว 4–5 ช่วงจะไม่คร่อม 0 ได้โดยบังเอิญ ตัวตัดสินหลักคือตารางผลรวม 63 วัน",
 ]
 BOOTSTRAP = 2000
@@ -202,7 +205,7 @@ def evaluate_date(
         items.append((GATE, gate["fair_value"], gate["mos"]))
         for method, value, mos in items:
             rows.append({
-                "date": t, "symbol": sym, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
+                "date": t, "symbol": sym, "sector": s.info.sector, "method": method, "price": price[sym], "fair_value": value, "mos": mos,
                 "quality_passed": passed, "candidate": candidate, "candidate_median": candidate_median,
                 "abnormal": abnormal(value, mos, price[sym]), "profit_jump": jump, **variants,
             })
@@ -403,6 +406,31 @@ def profit_jump_table(done: pd.DataFrame, baseline: pd.Series, min_mos: float) -
     return table.assign(informative=informative)
 
 
+def banking_table(done: pd.DataFrame, baseline: pd.Series, min_mos: float) -> pd.DataFrame:
+    """`candidate` split into Banking and the rest, per half and whole (backtest-ex-banking-variant D1–D4).
+    The edge outside banks holds when the rest is positive in both halves and its whole-period CI is above 0,
+    a rule fixed before the run; it need not beat `candidate`."""
+    out = []
+    for label, part in periods(done) + [(WHOLE, done)]:
+        g = groups(part, min_mos)[CANDIDATE]
+        for bank in (True, False):
+            sub = g.assign(selected=g["selected"] & ((g["sector"] == BANKING) == bank))
+            n = picks(sub)
+            out.append({"banking": bank, "period": label, **excess(sub, baseline, spread=True),
+                        "mean_count": float(n.mean()) if len(n) else None})
+    table = pd.DataFrame(out)
+    rest = table[~table["banking"]].set_index("period")
+    halves = rest.drop(WHOLE)["mean"].astype(float)
+    why = []
+    # NaN compares False, so a half without a non-bank candidate is not positive
+    if not (len(halves) and (halves > 0).all()):
+        why.append("ไม่เป็นบวกทุกช่วง")
+    ci_low = rest.loc[WHOLE, "ci_low"]
+    if ci_low is None or pd.isna(ci_low) or ci_low <= 0:
+        why.append("95% CI คร่อม 0")
+    return table.assign(edge=not why, why=", ".join(why))
+
+
 def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.DataFrame]:
     """`rows` from evaluate_date + with_outcomes. Evaluations whose horizon has not passed are not counted.
     `clean` drops abnormal evaluations from the groups but keeps every stock in the baseline (design D3)."""
@@ -443,6 +471,7 @@ def metrics(rows: pd.DataFrame, min_mos: float, seed: int = 0) -> dict[str, pd.D
         "baseline": baseline,
         **variants(done, baseline, min_mos),
         "profit_jump": profit_jump_table(done, baseline, min_mos),
+        "banking": banking_table(done, baseline, min_mos),
     }
 
 
@@ -637,6 +666,15 @@ def report(
                [["ติดป้าย" if r.tagged else "ไม่ติดป้าย", r.period, r.dates, _pct(r.mean), _ci(r.ci_low, r.ci_high), _t(r.t),
                  "–" if r.mean_count is None else f"{r.mean_count:.1f}"] for r in result["profit_jump"].itertuples()]),
         "ป้ายมีข้อมูล: " + ("ใช่" if len(result["profit_jump"]) and result["profit_jump"]["informative"].iloc[0] else "ไม่ใช่"),
+        "## candidate นอกธนาคาร",
+        f"candidate แยกเป็นหุ้นใน sector {BANKING} และนอก {BANKING} baseline ยังรวมหุ้นทุก sector "
+        f"เกณฑ์: edge นอกธนาคารมีเมื่อ excess เฉลี่ย {HORIZON} วันของกลุ่มนอก {BANKING} เป็นบวกทั้งสองช่วง และขอบล่าง 95% CI ทั้งช่วง > 0 "
+        "(นับค่าผิดปกติ ไม่ต้องชนะ candidate) เกณฑ์นี้ตั้งหลังเห็นผลรอบแรกจากการแยก sector ครั้งเดียว (2026-10-27) "
+        "จึงเป็นการตั้งล่วงหน้าสำหรับรอบหลังจากนี้เท่านั้น และไม่ใช่ out-of-sample ผลนี้ไม่เปลี่ยน gate",
+        _table(["กลุ่ม", "ช่วง", "วันที่", "excess เฉลี่ย", "95% CI", "t", "หุ้นเฉลี่ย/วันที่"],
+               [[BANKING if r.banking else f"นอก {BANKING}", r.period, r.dates, _pct(r.mean), _ci(r.ci_low, r.ci_high),
+                 _t(r.t), "–" if r.mean_count is None else f"{r.mean_count:.1f}"] for r in result["banking"].itertuples()]),
+        "edge นอกธนาคาร: " + ("มี" if result["banking"]["edge"].iloc[0] else f"ไม่มี ({result['banking']['why'].iloc[0]})"),
         f"## หุ้นที่ตัด ({len(excluded)} ตัว, {share:.0%})",
         ", ".join(f"{k} {v} ตัว" for k, v in by_reason.items()),
         _table(["หุ้น", "เหตุผล"], [[k, v] for k, v in sorted(excluded.items())]) if excluded else "ไม่มี",

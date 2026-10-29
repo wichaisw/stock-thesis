@@ -58,6 +58,15 @@ A variant passes only when all of these hold (fixed before the first run, design
 - Check `หุ้นเฉลี่ย/วันที่` of the tagged rows. Few tagged stocks per date make that row's CI too wide to read.
 - The backtest tags on thaifin profit only; the batch overlays yfinance on the latest quarters, so live tags can differ.
 
+## Reading the bank table (`## candidate นอกธนาคาร`)
+
+`candidate` split into sector `Banking` and everything else, per half and for the whole period. Other financials (Finance & Securities, Insurance) count outside Banking. The baseline still includes the banks. "edge นอกธนาคาร: มี" means the non-bank rows have a positive mean excess in both halves and a whole-period 95% CI lower bound above 0. They do not need to beat `candidate` (design D1–D4 of `backtest-ex-banking-variant`).
+
+- The rule was set after one exploratory look at the same data (2026-10-27), so it is a pre-set rule only for later runs. It is not out-of-sample.
+- The first run passed by a hair (lower bound +0.003%). Compare the non-bank whole-period row between runs, not just the verdict.
+- "ไม่มี" means the candidate rule has no evidence outside the banks. Report it and ask the user. It is never a reason to change the gate here.
+- The sector is the stock's latest one from thaifin, not the one it had on the test date.
+
 There are only 22 test dates, and evaluations of one stock on consecutive dates are not independent. A difference of a few percentage points between runs is noise.
 
 ## Stop rules

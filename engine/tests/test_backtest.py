@@ -226,7 +226,7 @@ def frame(rows: list[tuple], **extra) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=cols)
     df["date"] = pd.to_datetime(df["date"])
     defaults = {"ret_126": None, "ret_252": None, "abnormal": False, "quality_passed": True, "relative": False,
-                "candidate_median": False, "profit_jump": False} | {v.flag: False for v in bt.VARIANTS}
+                "candidate_median": False, "profit_jump": False, "sector": "Food"} | {v.flag: False for v in bt.VARIANTS}
     for col, value in (defaults | extra).items():
         df[col] = value
     return df
@@ -448,7 +448,9 @@ def test_report_has_every_section():
                  "| 95% CI | t |", "## ผลรวมแบบไม่นับค่าผิดปกติ", "## ต่อระยะวัดผล", "median excess 252 วัน",
                  "| candidate % | candidate (median) | candidate (median) % | relative | relative % |", "ช่วงวัดผลของวันที่ทดสอบที่ติดกันซ้อนกัน",
                  "90 ช่วงความเชื่อมั่น", "## variant ของ candidate rule", "ไม่ใช่ out-of-sample", "| ผ่านเกณฑ์ | เหตุผล |",
-                 "| candidate Option A |", "| candidate quality ผ่านทุกข้อ + D/E ≤ 2.0 |", "## ป้ายกำไรกระโดด", "ป้ายมีข้อมูล:"]:
+                 "| candidate Option A |", "| candidate quality ผ่านทุกข้อ + D/E ≤ 2.0 |", "## ป้ายกำไรกระโดด", "ป้ายมีข้อมูล:",
+                 "## candidate นอกธนาคาร", "| นอก Banking | ทั้งช่วง |", "edge นอกธนาคาร:", "ตั้งหลังเห็นผลรอบแรก",
+                 "sector ล่าสุดจาก thaifin"]:
         assert part in md, part
     for method in CFG.fair_value.enabled + [bt.MEDIAN, bt.GATE, bt.CANDIDATE, bt.CANDIDATE_MEDIAN, bt.RELATIVE]:
         assert f"| {method} |" in md, method
@@ -551,3 +553,73 @@ def test_backtest_and_batch_read_the_same_profit_jump():
     known = bt.cut(stock(q=q), T, CFG.catalyst).quarterly
     expected = bt.quality.profit_jump(bt.quality.reported_quarters(known)[0], CFG.flags.profit_jump_ratio)["flag"]
     assert expected and all(r["profit_jump"] for r in rows)
+
+
+# backtest-ex-banking-variant: candidate outside banks
+
+
+def test_rows_carry_the_stock_sector():
+    rows, _ = bt.evaluate_date({"KTB": stock("KTB", sector="Banking")}, T, CFG)
+    assert rows and all(r["sector"] == "Banking" for r in rows)
+
+
+def bank_rows(target=lambda d: None, rest_candidate=lambda d: True) -> pd.DataFrame:
+    """variant_rows (candidates S0–S4): S0 Banking, S1 Finance & Securities, the rest Food. Untouched, S1–S4 beat
+    the all-stock baseline by 0.02 per date; `target(d)` sets that excess, and `rest_candidate(d)` False drops
+    S1–S4 from the candidates on date d."""
+    df = variant_rows(lambda d, i: False)
+    df["sector"] = "Food"
+    df.loc[df["symbol"] == "S0", "sector"] = "Banking"
+    df.loc[df["symbol"] == "S1", "sector"] = "Finance & Securities"
+    dates = sorted(df["date"].unique())
+    rest = df["symbol"].isin(["S1", "S2", "S3", "S4"])
+    for d_i, d in enumerate(dates):
+        on = rest & (df["date"] == d)
+        if (x := target(d_i)) is not None:
+            df.loc[on, "ret"] += (x - 0.02) / 0.6  # the 4 of 10 also move the baseline by 0.4 of the shift
+        if not rest_candidate(d_i):
+            df.loc[on, "candidate"] = False
+    return df
+
+
+def banking(df: pd.DataFrame) -> pd.DataFrame:
+    return bt.metrics(df, 0.10)["banking"]
+
+
+def test_banks_and_other_financials_land_in_their_rows():
+    t = banking(bank_rows()).set_index(["period", "banking"])
+    assert t.loc[(bt.WHOLE, True), "mean_count"] == 1.0
+    assert t.loc[(bt.WHOLE, False), "mean_count"] == 4.0  # Finance & Securities counts outside Banking
+
+
+def test_baseline_keeps_the_banks():
+    t = banking(bank_rows()).set_index(["period", "banking"])
+    # a baseline without banks would be the mean of S1–S9 and give 0.025
+    assert t.loc[(bt.WHOLE, False), "mean"] == pytest.approx(0.02)
+
+
+def test_edge_outside_banks_holds_without_beating_candidate():
+    t = banking(bank_rows())
+    assert t["edge"].all() and (t["why"] == "").all()
+    whole = t.set_index(["period", "banking"]).loc[(bt.WHOLE, False), "mean"]
+    cand = bt.metrics(bank_rows(), 0.10)["summary"].set_index("group").loc[bt.CANDIDATE, "excess_mean"]
+    assert whole < cand
+
+
+def test_positive_halves_with_ci_across_zero_is_no_edge():
+    t = banking(bank_rows(target=lambda d: 0.05 if d % 2 else -0.045))
+    rest = t[~t["banking"]].set_index("period")["mean"]
+    assert (rest > 0).all()
+    assert not t["edge"].any() and t["why"].iloc[0] == "95% CI คร่อม 0"
+
+
+def test_one_negative_half_is_no_edge():
+    t = banking(bank_rows(target=lambda d: None if d < 8 else -0.003))
+    assert not t["edge"].any() and "ไม่เป็นบวกทุกช่วง" in t["why"].iloc[0]
+
+
+def test_half_without_non_bank_candidate_is_no_edge():
+    t = banking(bank_rows(rest_candidate=lambda d: d < 8))
+    late = t.set_index(["period", "banking"]).loc[("2024Q1–2025Q4", False)]
+    assert late["dates"] == 0
+    assert not t["edge"].any() and "ไม่เป็นบวกทุกช่วง" in t["why"].iloc[0]

@@ -300,6 +300,21 @@ def history(conn: sqlite3.Connection, price_date: str) -> dict | None:
     return {"price_date": price_date, "run_id": day["run_id"], "candidates": [json.loads(r["result"]) for r in rows]}
 
 
+def gate_methods(conn: sqlite3.Connection, run_id: int) -> list[str] | None:
+    """The gate methods the run applied; None for runs saved before the gate or with no statements at all."""
+    row = conn.execute(
+        "SELECT json_extract(result, '$.fair_value.gate.methods') AS m FROM evaluations "
+        "WHERE run_id=? AND json_extract(result, '$.fair_value.gate.methods') IS NOT NULL LIMIT 1",
+        (run_id,),
+    ).fetchone()
+    return json.loads(row["m"]) if row else None
+
+
+def evaluations(conn: sqlite3.Connection, run_id: int) -> list[dict]:
+    rows = conn.execute("SELECT result FROM evaluations WHERE run_id=?", (run_id,))
+    return [json.loads(r["result"]) for r in rows]
+
+
 def evaluation(conn: sqlite3.Connection, run_id: int, symbol: str) -> dict | None:
     row = conn.execute("SELECT result FROM evaluations WHERE run_id=? AND symbol=?", (run_id, symbol)).fetchone()
     return json.loads(row["result"]) if row else None

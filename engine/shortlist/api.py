@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, ValidationError
 from shortlist import batch, db
 from shortlist.config import DEFAULT_PATH as CONFIG_PATH
 from shortlist.config import SECTION_TITLES, STATE_LABELS, Config, editable_fields, load_config
+from shortlist.core import candidates as candidate_rule
 from shortlist.core import catalyst, exit
 from shortlist.core.fair_value import LABELS as FAIR_VALUE_LABELS
 
@@ -222,12 +223,25 @@ def create_app(
         return found
 
     @app.get("/candidates")
-    def candidates(c: sqlite3.Connection = Depends(conn)) -> dict:
+    def candidates(gates: str | None = None, c: sqlite3.Connection = Depends(conn)) -> dict:
+        """`gates` is a comma list of gate methods, "" for none; absent means the run's own (candidate-gate-toggle)."""
+        chosen = None if gates is None else [g for g in gates.split(",") if g]
+        if chosen is not None and (bad := sorted(set(chosen) - set(candidate_rule.TOGGLEABLE))):
+            raise HTTPException(422, f"เลือก gate ได้เฉพาะ Peer PE และ Justified PBV (ได้รับ {', '.join(bad)})")
         run = db.latest_successful_run(c)
         stale = db.settings_stale(c)
         if not run:
-            return {"run": None, "candidates": [], "failure_count": 0, "stale": stale}
-        return {"run": run, "candidates": db.candidates(c, run["id"]), "failure_count": run["failed"], "stale": stale}
+            return {"run": None, "candidates": [], "failure_count": 0, "stale": stale, "gates": chosen, "batch_gates": None}
+        cfg = current_config(c)
+        batch_gates = db.gate_methods(c, run["id"]) or cfg.candidates.gate_methods
+        if chosen is None or set(chosen) == set(batch_gates):
+            # the stored rows, so RRR is not recomputed from rounded entry and stop (design D2)
+            rows, chosen = db.candidates(c, run["id"]), batch_gates
+        else:
+            chosen = [m for m in candidate_rule.TOGGLEABLE if m in chosen]
+            rows = candidate_rule.regate(db.evaluations(c, run["id"]), chosen, cfg.candidates, cfg.risk_reward)
+        return {"run": run, "candidates": rows, "failure_count": run["failed"], "stale": stale,
+                "gates": chosen, "batch_gates": batch_gates}
 
     @app.get("/failures")
     def failures(c: sqlite3.Connection = Depends(conn)) -> dict:

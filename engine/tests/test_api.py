@@ -27,7 +27,8 @@ def client(tmp_path):
 def test_no_successful_run_yet(client):
     c, _ = client
     assert c.get("/runs/latest").json() == {"latest": None, "latest_succeeded": None}
-    assert c.get("/candidates").json() == {"run": None, "candidates": [], "failure_count": 0, "stale": False}
+    assert c.get("/candidates").json() == {"run": None, "candidates": [], "failure_count": 0, "stale": False,
+                                           "gates": None, "batch_gates": None}
     assert c.get("/failures").json() == {"run": None, "failures": []}
     assert c.get("/stocks/AAA").status_code == 404
 
@@ -110,6 +111,31 @@ def test_event_needs_text(client):
     c.post("/runs")
     assert c.post("/stocks/AAA/events", json={"date": "2026-12-14", "text": ""}).status_code == 422
 
+
+
+def test_candidates_gate_toggle(client):
+    c, _ = client
+    c.put("/settings", json={"candidates.accepted_states": ["bear-far", "bear-approaching", "just-crossed", "bull"]})
+    c.post("/runs")
+    base = c.get("/candidates").json()
+    assert base["gates"] == base["batch_gates"] == ["peer_pe", "justified_pbv"]
+    assert c.get("/candidates", params={"gates": "justified_pbv,peer_pe"}).json() == base
+
+    none = c.get("/candidates", params={"gates": ""}).json()
+    assert none["gates"] == [] and [e["symbol"] for e in none["candidates"]] == ["AAA"]
+    aaa = none["candidates"][0]
+    assert aaa["candidate_rank"] == 1 and aaa["risk_reward"]["target_source"] == "median"
+    assert aaa["risk_reward"]["target"] == aaa["fair_value"]["summary"]["median_fair_value"]
+
+    one = c.get("/candidates", params={"gates": "justified_pbv"}).json()
+    assert one["gates"] == ["justified_pbv"]
+    assert all(e["fair_value"]["gate"]["methods"] == ["justified_pbv"] for e in one["candidates"])
+
+    r = c.get("/candidates", params={"gates": "pe_median"})
+    assert r.status_code == 422 and "Peer PE และ Justified PBV" in r.json()["detail"]
+    # read-only: the stored list is unchanged after toggling
+    assert c.get("/candidates").json() == base
+    assert c.get("/stocks/AAA").json()["evaluation"]["fair_value"]["gate"]["methods"] == ["peer_pe", "justified_pbv"]
 
 
 def test_schema_exists_before_first_request(tmp_path):

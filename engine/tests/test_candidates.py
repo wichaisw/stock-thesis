@@ -91,3 +91,20 @@ def test_equal_eta_sorts_by_gate_mos_not_median():
     a = ev("A", mos=0.12, median=0.50)
     b = ev("B", mos=0.30, median=0.20)
     assert symbols([a, b]) == ["B", "A"]
+
+
+def no_gate(e: dict) -> dict:
+    e["fair_value"]["gate"] = fair_value.gate([], [])
+    return e
+
+
+def test_no_gate_lets_negative_mos_through():
+    assert symbols([no_gate(ev("A", mos=-0.2, jpbv=-0.3))]) == ["A"]
+
+
+def test_no_gate_ties_are_sorted_by_symbol():
+    assert symbols([no_gate(ev("BBB")), no_gate(ev("AAA"))]) == ["AAA", "BBB"]
+
+
+def test_no_gate_still_needs_quality():
+    assert symbols([no_gate(ev("A", quality_ok=False))]) == []

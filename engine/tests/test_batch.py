@@ -546,3 +546,17 @@ def test_illiquid_holding_statement_error_still_evaluates_without_statements(tmp
     assert ev["quality"] is None and ev["cdc"]["state"] is not None
     assert "HELD" not in db.failures(conn, run_id)
     assert any("HELD (หุ้นที่ถือ)" in line for line in lines)
+
+
+def test_regate_with_the_batch_gates_matches_the_batch(tmp_path):
+    conn = db.connect(tmp_path / "t.db")
+    cfg = CFG.model_copy(update={"candidates": CFG.candidates.model_copy(
+        update={"accepted_states": ["bear-far", "bear-approaching", "just-crossed", "bull"], "min_gate_mos": -1.0})})
+    run_id = batch.run(conn, *fake_sources(), cfg)
+    stored = db.evaluations(conn, run_id)
+    assert any(e["candidate_rank"] for e in stored)
+
+    regated = candidates.regate(db.evaluations(conn, run_id), cfg.candidates.gate_methods, cfg.candidates, cfg.risk_reward)
+    # RRR may differ in the last digits: the stored entry and stop are rounded (design D2)
+    pick = lambda e: (e["symbol"], e["candidate_rank"], e["inclusion"], e["fair_value"]["gate"], e["risk_reward"]["target"])
+    assert [pick(e) for e in regated] == [pick(e) for e in db.candidates(conn, run_id)]

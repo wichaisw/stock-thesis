@@ -84,3 +84,25 @@ def test_no_gate_method_is_na_even_when_the_panel_has_values():
     r = risk_reward.evaluate(prices(), slow=12.0, fair_value=fv(None, top=20.0, median=18.0), cfg=CFG)
     assert r["target"] is None and r["rrr"] is None
     assert r["reason"] == "ไม่มี gate method ที่คำนวณได้"
+
+
+def no_gate(median: float | None) -> dict:
+    return {"summary": {"median_fair_value": median, "max_fair_value": median}, "gate": fair_value.gate([], [])}
+
+
+def test_levels_without_peer_pe_uses_justified_pbv():
+    items = [{"method": "peer_pe", "fair_value": 2.54, "mos": -1.5, "reason": None},
+             {"method": "justified_pbv", "fair_value": 9.0, "mos": 0.29, "reason": None}]
+    fv_ = {"summary": {"median_fair_value": 5.0, "max_fair_value": 9.0}, "gate": fair_value.gate(items, ["justified_pbv"])}
+    r = risk_reward.levels(6.35, 6.00, fv_, CFG)
+    assert r["target"] == 9.0 and r["rrr"] == 7.57 and r["target_source"] == "gate"
+
+
+def test_no_gate_targets_the_panel_median():
+    r = risk_reward.levels(12.40, 11.50, no_gate(18.0), CFG)
+    assert r["target"] == 18.0 and r["target_source"] == "median"
+
+
+def test_no_gate_and_empty_panel_is_na():
+    r = risk_reward.levels(12.40, 11.50, no_gate(None), CFG)
+    assert r["rrr"] is None and r["reason"] == "ไม่มีเกณฑ์ที่คำนวณได้"

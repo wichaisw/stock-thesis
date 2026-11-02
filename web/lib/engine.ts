@@ -126,6 +126,8 @@ export type Evaluation = {
     entry: number;
     stop: number;
     target: number | null;
+    // "median" only when the candidates page turned every gate off; absent in older runs
+    target_source?: "gate" | "median";
     target_optimistic: number | null;
     rrr: number | null;
     low_rrr: boolean;

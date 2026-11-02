@@ -68,6 +68,9 @@ export function CandidateTable({ candidates, linkSymbols }: { candidates: Evalua
                 </td>
                 <td className="px-3 py-2 text-right" title={rr?.reason ?? undefined}>
                   {rr ? (rr.rrr ?? "N/A") : "-"}
+                  {rr?.target_source === "median" && (
+                    <div className="text-xs whitespace-nowrap text-zinc-500">target จาก median</div>
+                  )}
                 </td>
                 <td className="space-x-1 px-3 py-2 whitespace-nowrap">
                   {c.quality?.inflection?.flag && (
